@@ -5,8 +5,10 @@ edition = "2021"
 publish = false
 description = "Nib crate: nib-asr-sidecar — native ASR sidecar (sherpa-onnx, Parakeet int8)"
 
+# Branded like the main binary: a stray `nib-*` process sitting next to HoldToSpeak.exe in
+# Task Manager looks like something unrelated got installed.
 [[bin]]
-name = "nib-asr-sidecar"
+name = "HoldToSpeak-engine"
 path = "src/main.rs"
 
 [dependencies]

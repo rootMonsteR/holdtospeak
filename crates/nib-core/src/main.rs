@@ -230,14 +230,14 @@ fn main() {
     let cfg = SidecarConfig {
         kind: sidecar_kind,
         program: match sidecar_kind {
-            // Shipping layout: the native sidecar sits next to nib-core.exe (with its DLLs).
+            // Shipping layout: the engine sits next to HoldToSpeak.exe (with its DLLs).
             SidecarKind::Native => resolve_asset(
                 "NIB_SIDECAR",
                 std::env::current_exe()
                     .ok()
-                    .and_then(|p| p.parent().map(|d| d.join("nib-asr-sidecar.exe")))
+                    .and_then(|p| p.parent().map(|d| d.join("HoldToSpeak-engine.exe")))
                     .unwrap_or_default(),
-                dev.join("target/release/nib-asr-sidecar.exe"),
+                dev.join("target/release/HoldToSpeak-engine.exe"),
             ),
             SidecarKind::Python => resolve_asset(
                 "NIB_SIDECAR",
