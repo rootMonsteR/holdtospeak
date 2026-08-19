@@ -3,7 +3,7 @@
 //! prototype: our-own-event tagging, stuck-modifier self-heal, the Start-menu mask-key trick, PTT
 //! suppression, and the mode-cycle chord. Decoupled from capture — the pipeline drives the ring.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering::SeqCst};
 use std::sync::mpsc::Sender;
 use std::sync::OnceLock;
 
@@ -32,9 +32,15 @@ static ALT: AtomicBool = AtomicBool::new(false);
 static SHIFT: AtomicBool = AtomicBool::new(false);
 static WIN: AtomicBool = AtomicBool::new(false);
 static PTT_MODS: AtomicU8 = AtomicU8::new(0);
-static CYCLE_MODS: AtomicU8 = AtomicU8::new(0);
-static CYCLE_KEY: AtomicU32 = AtomicU32::new(0);
-static CYCLE_ARMED: AtomicBool = AtomicBool::new(false);
+/// Secondary chords, parallel arrays indexed the same way the caller passed them so the emitted
+/// `HotkeyEvent::Chord(i)` needs no lookup table. Four is well past what the UI offers and keeps
+/// these as fixed statics (the hook proc must not allocate).
+const MAX_CHORDS: usize = 4;
+static CHORD_MODS: [AtomicU8; MAX_CHORDS] = [const { AtomicU8::new(0) }; MAX_CHORDS];
+static CHORD_KEYS: [AtomicU32; MAX_CHORDS] = [const { AtomicU32::new(0) }; MAX_CHORDS];
+/// One-shot latch per chord: a held chord must fire once, not once per key repeat.
+static CHORD_ARMED: [AtomicBool; MAX_CHORDS] = [const { AtomicBool::new(false) }; MAX_CHORDS];
+static CHORD_N: AtomicUsize = AtomicUsize::new(0);
 static WIN_LEAKED: AtomicBool = AtomicBool::new(false);
 static RECORDING: AtomicBool = AtomicBool::new(false);
 static SINK: OnceLock<Sender<HotkeyEvent>> = OnceLock::new();
@@ -155,22 +161,25 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
         }
         let mods = cur_mods();
 
-        // cycle-mode hotkey (chord): fire once on keydown while its modifiers are held.
-        let ck = CYCLE_KEY.load(SeqCst) as u16;
-        let cm = CYCLE_MODS.load(SeqCst);
-        if ck != 0 && cm != 0 {
+        // secondary chords: each fires once on keydown while its modifiers are held.
+        for i in 0..CHORD_N.load(SeqCst).min(MAX_CHORDS) {
+            let ck = CHORD_KEYS[i].load(SeqCst) as u16;
+            let cm = CHORD_MODS[i].load(SeqCst);
+            if ck == 0 || cm == 0 {
+                continue;
+            }
             if down && mb == 0 && vk == ck && (mods & cm) == cm {
-                if !CYCLE_ARMED.swap(true, SeqCst) {
-                    emit(HotkeyEvent::Secondary);
+                if !CHORD_ARMED[i].swap(true, SeqCst) {
+                    emit(HotkeyEvent::Chord(i as u8));
                 }
                 if WIN_LEAKED.swap(false, SeqCst) {
                     send_vk(VK_MASK_DUMMY, false);
                     send_vk(VK_MASK_DUMMY, true);
                 }
-                return LRESULT(1); // swallow the cycle key
+                return LRESULT(1); // swallow the chord's main key
             }
             if !down && vk == ck {
-                CYCLE_ARMED.store(false, SeqCst);
+                CHORD_ARMED[i].store(false, SeqCst);
             }
         }
 
@@ -225,14 +234,18 @@ impl Win32Hotkey {
 }
 
 impl HotkeySource for Win32Hotkey {
-    fn start(&self, ptt: Binding, cycle: Option<Binding>, sink: Sender<HotkeyEvent>) {
+    fn start(&self, ptt: Binding, chords: Vec<Binding>, sink: Sender<HotkeyEvent>) {
         let (pm, _) = binding_mods_key(&ptt);
         PTT_MODS.store(pm, SeqCst);
-        if let Some(c) = cycle {
-            let (cm, ck) = binding_mods_key(&c);
-            CYCLE_MODS.store(cm, SeqCst);
-            CYCLE_KEY.store(ck as u32, SeqCst);
+        let n = chords.len().min(MAX_CHORDS);
+        for (i, c) in chords.iter().take(n).enumerate() {
+            let (cm, ck) = binding_mods_key(c);
+            CHORD_MODS[i].store(cm, SeqCst);
+            CHORD_KEYS[i].store(ck as u32, SeqCst);
         }
+        // Published last: the hook proc reads this to bound its loop, so the slots above are
+        // already populated by the time any chord is considered live.
+        CHORD_N.store(n, SeqCst);
         let _ = SINK.set(sink);
         std::thread::spawn(|| unsafe {
             let hmod = GetModuleHandleW(None).unwrap();

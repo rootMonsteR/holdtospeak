@@ -9,7 +9,7 @@ pub use settings::Settings;
 
 use std::path::Path;
 
-use nib_platform::Binding;
+use nib_platform::{Binding, ChordAction};
 
 /// Modifier bits used while parsing (Ctrl=1, Alt=2, Shift=4, Win=8).
 pub const MOD_CTRL: u8 = 1;
@@ -110,18 +110,62 @@ pub fn binding_from_combo(v: &str, suppress: bool) -> Option<Binding> {
     })
 }
 
-/// The resolved hotkey set: push-to-talk (modifier-only) and an optional mode-cycle chord.
+/// The resolved hotkey set: push-to-talk (modifier-only) plus the optional secondary chords.
+///
+/// Order matters — [`Hotkeys::chords`] flattens these into the indexed slice the hook streams
+/// back, so the numbering here is the contract between config and the event consumer.
 pub struct Hotkeys {
     pub ptt: Binding,
-    pub cycle: Option<Binding>,
+    pub cycle_mode: Option<Binding>,
+    pub cycle_style: Option<Binding>,
+    pub quit: Option<Binding>,
 }
 
 impl Default for Hotkeys {
     fn default() -> Self {
         Hotkeys {
             ptt: binding_from_combo("Ctrl+Win", true).expect("valid default ptt"),
-            cycle: binding_from_combo("Ctrl+Alt+M", true),
+            cycle_mode: binding_from_combo("Ctrl+Alt+M", true),
+            // Overlay theme. `O` for overlay: Ctrl+Alt+T is taken by a terminal in most Linux
+            // muscle memory and by several Windows tools, and this has to be safe to press.
+            cycle_style: binding_from_combo("Ctrl+Alt+O", true),
+            // Quit needs a hotkey because the console window is easy to lose behind other windows,
+            // and the banner advertises `q` without saying it means "typed into that console".
+            quit: binding_from_combo("Ctrl+Alt+Q", true),
         }
+    }
+}
+
+impl Hotkeys {
+    /// Flatten the configured chords into (binding, action) pairs, skipping any that are unset or
+    /// invalid. Built in one place so the hook's indices and the consumer's meanings cannot drift.
+    pub fn chords(&self) -> (Vec<Binding>, Vec<ChordAction>) {
+        let mut b = Vec::new();
+        let mut a = Vec::new();
+        for (binding, action) in [
+            (&self.cycle_mode, ChordAction::CycleMode),
+            (&self.cycle_style, ChordAction::CycleStyle),
+            (&self.quit, ChordAction::Quit),
+        ] {
+            if let Some(x) = binding {
+                b.push(x.clone());
+                a.push(action);
+            }
+        }
+        (b, a)
+    }
+}
+
+/// Apply one configured chord: an explicit `off`/`none` clears it, a valid combo replaces it,
+/// and anything unparseable leaves the default alone rather than silently disabling the key.
+fn set_chord(slot: &mut Option<Binding>, v: &str) {
+    if matches!(v.trim().to_ascii_lowercase().as_str(), "off" | "none" | "") {
+        *slot = None;
+        return;
+    }
+    let (m, key) = parse_combo(v);
+    if m != 0 && key != 0 {
+        *slot = binding_from_combo(v, true);
     }
 }
 
@@ -148,12 +192,11 @@ pub fn load(path: &Path) -> Hotkeys {
                     hk.ptt = b;
                 }
             }
-            "cycle_mode" | "cycle" => {
-                let (m, key) = parse_combo(v);
-                if m != 0 && key != 0 {
-                    hk.cycle = binding_from_combo(v, true);
-                }
-            }
+            // Every chord needs a modifier AND a main key; a modifier-only chord would fight
+            // push-to-talk. `off`/`none` disables one.
+            "cycle_mode" | "cycle" => set_chord(&mut hk.cycle_mode, v),
+            "cycle_style" | "cycle_overlay" | "style" => set_chord(&mut hk.cycle_style, v),
+            "quit" => set_chord(&mut hk.quit, v),
             _ => {}
         }
     }
@@ -163,6 +206,47 @@ pub fn load(path: &Path) -> Hotkeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The hook reports a chord by INDEX, so the pairing between position and meaning is a
+    /// contract. Disabling one chord must shift the rest's indices *together with* their actions,
+    /// never renumber one without the other — that would silently rebind a key to a new action.
+    #[test]
+    fn chord_indices_travel_with_their_actions() {
+        let (b, a) = Hotkeys::default().chords();
+        assert_eq!(b.len(), a.len());
+        assert_eq!(
+            a,
+            vec![
+                ChordAction::CycleMode,
+                ChordAction::CycleStyle,
+                ChordAction::Quit
+            ]
+        );
+
+        let hk = Hotkeys {
+            cycle_mode: None,
+            ..Hotkeys::default()
+        };
+        let (b2, a2) = hk.chords();
+        assert_eq!(b2.len(), 2);
+        assert_eq!(a2, vec![ChordAction::CycleStyle, ChordAction::Quit]);
+    }
+
+    /// `off` disables a chord; junk leaves the default alone rather than silently killing the key.
+    #[test]
+    fn chord_can_be_disabled_but_junk_keeps_the_default() {
+        let mut slot = binding_from_combo("Ctrl+Alt+Q", true);
+        set_chord(&mut slot, "off");
+        assert!(slot.is_none(), "`off` must disable");
+
+        let mut slot = binding_from_combo("Ctrl+Alt+Q", true);
+        set_chord(&mut slot, "not a combo");
+        assert!(slot.is_some(), "unparseable input must not disable the key");
+
+        let mut slot = None;
+        set_chord(&mut slot, "Ctrl+Shift+F5");
+        assert!(slot.is_some(), "a valid combo must set it");
+    }
 
     #[test]
     fn parse_combo_basics() {

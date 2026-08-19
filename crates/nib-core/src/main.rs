@@ -13,12 +13,10 @@ use nib_audio::Capture;
 use nib_cleanup::Mode;
 use nib_pipeline::{hotkey_forwarder, PipeMsg, Pipeline};
 use nib_platform::Autostart;
-use nib_platform::{
-    HotkeyEvent, HotkeySource, InputWitness, PathLayout, TargetProbe, TextInjector,
-};
+use nib_platform::{HotkeySource, InputWitness, PathLayout, TargetProbe, TextInjector};
 use nib_win32::{
     OverlayStyle, TrayCommand, Win32Autostart, Win32Hotkey, Win32Injector, Win32Overlay,
-    Win32Paths, Win32TargetProbe, Win32Tray,
+    Win32Paths, Win32TargetProbe, Win32Tray, STYLE_MAX_INDEX,
 };
 
 /// Default overlay style (the tactical-comms HUD).
@@ -99,6 +97,28 @@ fn fatal(msg: &str) -> ! {
         let _ = std::io::stdin().read_line(&mut sink);
     }
     std::process::exit(1);
+}
+
+/// Human-readable name for a configured chord, for the startup banner. An unset chord says so
+/// rather than printing nothing, so the banner never advertises a key that does not exist.
+fn combo_name(b: &Option<nib_platform::Binding>) -> String {
+    let Some(b) = b else {
+        return "(disabled)".to_string();
+    };
+    let name = |vk: u16| match vk {
+        0x11 => "Ctrl".to_string(),
+        0x12 => "Alt".to_string(),
+        0x10 => "Shift".to_string(),
+        0x5B | 0x5C => "Win".to_string(),
+        0x30..=0x5A => ((vk as u8) as char).to_string(),
+        0x70..=0x7B => format!("F{}", vk - 0x6F),
+        other => format!("VK{other:#04X}"),
+    };
+    b.keys
+        .iter()
+        .map(|&k| name(k))
+        .collect::<Vec<_>>()
+        .join("+")
 }
 
 /// Resolve an asset: an explicit `env_var` override wins; else the installed location if it
@@ -343,14 +363,20 @@ fn main() {
     // The forwarder freezes the capture window at key-event time (via CaptureControl) so a burst
     // of PTT presses during a prior transcription can't lose audio.
     let (tx, rx) = channel::<PipeMsg>();
+    // Chord bindings and their meanings are built together (nib-config::Hotkeys::chords) so the
+    // indices the hook reports and the actions taken here cannot drift apart.
+    let (chord_bindings, chord_actions) = hk.chords();
     hotkey.start(
-        hk.ptt,
-        hk.cycle,
+        hk.ptt.clone(),
+        chord_bindings,
         hotkey_forwarder(
             tx.clone(),
             capture.control(),
             current_listening.clone(),
             probe.clone(),
+            chord_actions,
+            current_style.clone(),
+            STYLE_MAX_INDEX + 1,
         ),
     );
 
@@ -381,7 +407,7 @@ fn main() {
                 let msg = match cmd {
                     TrayCommand::SetMode(i) => PipeMsg::SetMode(i),
                     TrayCommand::SetStyle(i) => PipeMsg::SetStyle(i),
-                    TrayCommand::CycleMode => PipeMsg::Hotkey(HotkeyEvent::Secondary),
+                    TrayCommand::CycleMode => PipeMsg::CycleMode,
                     TrayCommand::Quit => PipeMsg::Quit,
                 };
                 if tx.send(msg).is_err() {
@@ -395,11 +421,18 @@ fn main() {
         std::thread::spawn(move || console_loop(tx));
     }
 
+    // Spell out which keys are GLOBAL and which are typed into this window. The old banner listed
+    // "m" and "q" without that distinction, so they read as hotkeys — and then did nothing.
     println!(
         "Hold your PTT keys (default Ctrl+Win) and speak → text at your cursor.\n\
-         Mode: {}.  Console: m = cycle mode · learn <wrote> => <meant> · q = quit.\n\
+         Mode: {}.\n\
+         Hotkeys (anywhere):  {} = cycle mode · {} = cycle overlay · {} = quit.\n\
+         Console (type here): m = cycle mode · learn <heard> => <meant> · q = quit.\n\
          (Focus a text field first — e.g. Notepad.)",
-        mode.short_name()
+        mode.short_name(),
+        combo_name(&hk.cycle_mode),
+        combo_name(&hk.cycle_style),
+        combo_name(&hk.quit),
     );
 
     // Capture is !Send — build and run the pipeline here on the main thread.
@@ -434,7 +467,7 @@ fn console_loop(tx: Sender<PipeMsg>) {
             let _ = tx.send(PipeMsg::Quit);
             break;
         } else if matches!(lower.as_str(), "m" | "mode") {
-            let _ = tx.send(PipeMsg::Hotkey(HotkeyEvent::Secondary));
+            let _ = tx.send(PipeMsg::CycleMode);
         } else if let Some(rest) = lower
             .strip_prefix("learn ")
             .map(|_| t[6..].trim().to_string())

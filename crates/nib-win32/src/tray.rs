@@ -16,10 +16,11 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DispatchMessageW,
-    GetCursorPos, GetMessageW, LoadIconW, PostMessageW, RegisterClassW, SetForegroundWindow,
-    TrackPopupMenu, TranslateMessage, HMENU, IDI_APPLICATION, MENU_ITEM_FLAGS, MF_CHECKED,
-    MF_SEPARATOR, MF_STRING, MSG, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_APP, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WNDCLASSW,
+    GetCursorPos, GetMessageW, GetSystemMetrics, LoadIconW, LoadImageW, PostMessageW,
+    RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, HICON, HMENU,
+    IDI_APPLICATION, IMAGE_ICON, LR_DEFAULTCOLOR, MENU_ITEM_FLAGS, MF_CHECKED, MF_SEPARATOR,
+    MF_STRING, MSG, SM_CXSMICON, SM_CYSMICON, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE,
+    WINDOW_STYLE, WM_APP, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WNDCLASSW,
 };
 
 /// A user action from the tray. `nib-core` forwards these to the pipeline.
@@ -93,6 +94,25 @@ impl Win32Tray {
     }
 }
 
+/// The app icon embedded in our own executable (resource id 1 — see `nib-core`'s `build.rs`),
+/// loaded at the size Windows wants for the notification area.
+///
+/// Asking for the small-icon metric rather than letting the shell downscale a 32 px copy is what
+/// keeps it crisp: the `.ico` carries a purpose-drawn 16 px variant with fewer, fatter bars, and
+/// `LoadImageW` picks that entry. Falls back to the stock application icon if the binary was built
+/// without the resource, so a contributor without the Windows SDK still gets a working tray.
+unsafe fn tray_icon(hinst: HINSTANCE) -> HICON {
+    let (cx, cy) = (GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON));
+    // MAKEINTRESOURCE(1): Win32 overloads this parameter, passing a small integer where a string
+    // pointer would go. `without_provenance` says exactly that — an address that is deliberately
+    // not a real pointer — which is both what the API means and what keeps clippy's
+    // dangling-pointer lint honest instead of silenced.
+    let id = PCWSTR(std::ptr::without_provenance(1));
+    LoadImageW(hinst, id, IMAGE_ICON, cx, cy, LR_DEFAULTCOLOR)
+        .map(|h| HICON(h.0))
+        .unwrap_or_else(|_| LoadIconW(None, IDI_APPLICATION).unwrap_or_default())
+}
+
 unsafe fn run() {
     let hinst = GetModuleHandleW(None).unwrap();
     let class: Vec<u16> = "NibTray\0".encode_utf16().collect();
@@ -126,7 +146,7 @@ unsafe fn run() {
         uID: 1,
         uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
         uCallbackMessage: CB_MSG,
-        hIcon: LoadIconW(None, IDI_APPLICATION).unwrap_or_default(),
+        hIcon: tray_icon(HINSTANCE(hinst.0)),
         ..Default::default()
     };
     let tip: Vec<u16> = "HoldToSpeak — voice dictation (right-click for modes)\0"

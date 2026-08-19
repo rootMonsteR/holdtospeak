@@ -87,7 +87,8 @@ pub enum CtlMsg {
 /// pipeline's `HotkeyEvent` vocabulary distinguishes only push-to-talk from "some secondary
 /// binding fired", so this is the agreed mapping between the two.
 pub const COMBO_PTT: u16 = 0;
-/// The mode-cycle chord — maps to [`nib_platform::HotkeyEvent::Secondary`].
+/// The first secondary chord (mode cycle) — maps to [`nib_platform::HotkeyEvent::Chord`] 0.
+/// Further chords take consecutive ids; the payload is the chord index the pipeline sees.
 pub const COMBO_CYCLE: u16 = 1;
 
 /// Translate a wire message from `hookd` into the pipeline's platform-level event.
@@ -102,10 +103,10 @@ pub fn hook_msg_to_event(msg: &HookMsg) -> Option<nib_platform::HotkeyEvent> {
     match *msg {
         HookMsg::Armed => Some(HotkeyEvent::Armed),
         HookMsg::PttDown { qpc, combo_id, .. } => match combo_id {
-            COMBO_CYCLE => Some(HotkeyEvent::Secondary),
+            COMBO_CYCLE => Some(HotkeyEvent::Chord(0)),
             _ => Some(HotkeyEvent::PttDown { qpc }),
         },
-        // A cycle chord is a one-shot (its Down already emitted `Secondary`); only a
+        // A cycle chord is a one-shot (its Down already emitted `Chord`); only a
         // push-to-talk release means anything to the pipeline.
         HookMsg::PttUp { qpc, combo_id } => match combo_id {
             COMBO_CYCLE => None,
@@ -214,7 +215,7 @@ mod tests {
             combo_id: COMBO_CYCLE,
             seq: 0,
         });
-        assert!(matches!(ev, Some(HotkeyEvent::Secondary)));
+        assert!(matches!(ev, Some(HotkeyEvent::Chord(0))));
     }
 
     #[test]

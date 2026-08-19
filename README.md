@@ -56,21 +56,38 @@ cargo run --release -p nib-core -- --sidecar native
 
 ## Use
 
+Global hotkeys — these work in any app:
+
 | | |
 |---|---|
 | **Ctrl + Win** (hold) | dictate — speak, then release |
 | **Ctrl + Alt + M** | cycle cleanup mode |
-| tray icon | modes, overlay themes, quit |
-| `learn <heard> => <meant>` | teach it a word, permanently |
-| `q` + Enter | quit |
+| **Ctrl + Alt + O** | cycle overlay theme |
+| **Ctrl + Alt + Q** | quit |
 
-Rebind keys in `%APPDATA%\HoldToSpeak\hotkeys.toml`.
+Plus the tray icon (modes, overlay themes, quit), and in the console window: `m` to cycle mode,
+`learn <heard> => <meant>` to teach it a word permanently, `q` to quit.
+
+Rebind in `%APPDATA%\HoldToSpeak\hotkeys.toml` — `off` disables one:
+
+```toml
+ptt         = "Ctrl+Win"      # modifiers only
+cycle_mode  = "Ctrl+Alt+M"
+cycle_style = "Ctrl+Alt+O"
+quit        = "Ctrl+Alt+Q"
+```
 
 ### Cleanup modes
 
 - **Raw** — exactly what you said, plus your dictionary. Forced automatically in terminals/IDEs.
-- **Auto** — deterministic tidy: fillers removed, sentence casing, terminal punctuation. Rule-based,
-  so it can never invent words you didn't say.
+- **Auto** — light tidy: `um`/`uh` removed, sentence casing, terminal punctuation.
+- **Polish** — Auto plus conversational scaffolding removed: *"I'm just testing this, like, you
+  know, testing the software and stuff, just to make sure…"* becomes *"I'm just testing this,
+  testing the software, just to make sure…"*
+
+All three are rule-based and run entirely offline, so they can only ever **delete** filler — they
+can never invent or reword anything. Polish only removes a marker when it's comma-delimited, which
+is what keeps *"I like this"* and *"you know the answer"* intact.
 
 ## How it works
 

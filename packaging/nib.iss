@@ -20,13 +20,18 @@
 #define AppName "HoldToSpeak"
 #define AppPublisher "rootMonsteR"
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.1.2"
 #endif
 #ifndef BinDir
   #define BinDir "..\target\release"
 #endif
 #ifndef DocsDir
   #define DocsDir ".."
+#endif
+; The app icon. Shared with the exe (embedded by nib-core's build.rs) so the installer, the
+; Start-menu shortcut, Add/Remove Programs and the tray all show the same mark.
+#ifndef IconFile
+  #define IconFile "..\assets\HoldToSpeak.ico"
 #endif
 
 [Setup]
@@ -51,6 +56,8 @@ LicenseFile={#DocsDir}\LICENSE
 InfoBeforeFile={#DocsDir}\THIRD-PARTY-NOTICES.md
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\nib-core.exe
+; The wizard, and its Add/Remove entry, carry the same mark as the app itself.
+SetupIconFile={#IconFile}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

@@ -15,8 +15,8 @@ use nib_audio::{write_wav_16k, CaptureControl};
 use nib_cleanup::{effective_mode, Mode};
 use nib_inject::inject_with_fallback;
 use nib_platform::{
-    AudioCapture, HotkeyEvent, InjectOutcome, InputWitness, TargetProbe, TargetProfile,
-    TextInjector, Utterance,
+    AudioCapture, ChordAction, HotkeyEvent, InjectOutcome, InputWitness, TargetProbe,
+    TargetProfile, TextInjector, Utterance,
 };
 
 /// Messages the pipeline's run loop consumes: a completed (already-frozen) utterance plus control
@@ -25,7 +25,8 @@ use nib_platform::{
 pub enum PipeMsg {
     /// A released utterance whose sample range was frozen at key-up time (see `hotkey_forwarder`).
     Utterance(Utterance),
-    Hotkey(HotkeyEvent),
+    /// Advance to the next cleanup mode (hotkey, tray click, or console `m`).
+    CycleMode,
     SetMode(u8),
     SetStyle(u8),
     Learn(String),
@@ -46,6 +47,9 @@ pub fn hotkey_forwarder(
     control: CaptureControl,
     listening: Arc<AtomicBool>,
     probe: Arc<dyn TargetProbe + Send + Sync>,
+    chords: Vec<ChordAction>,
+    style: Arc<AtomicU8>,
+    style_count: u8,
 ) -> Sender<HotkeyEvent> {
     let (htx, hrx) = channel::<HotkeyEvent>();
     std::thread::spawn(move || {
@@ -72,7 +76,18 @@ pub fn hotkey_forwarder(
                     listening.store(false, SeqCst);
                     continue;
                 }
-                HotkeyEvent::Secondary => PipeMsg::Hotkey(HotkeyEvent::Secondary),
+                HotkeyEvent::Chord(i) => match chords.get(i as usize) {
+                    Some(ChordAction::CycleMode) => PipeMsg::CycleMode,
+                    // The overlay and the tray menu both poll this atom every frame, so writing it
+                    // here IS the whole action — and the theme changing on screen is the feedback.
+                    Some(ChordAction::CycleStyle) => {
+                        let next = (style.load(SeqCst) + 1) % style_count.max(1);
+                        style.store(next, SeqCst);
+                        continue;
+                    }
+                    Some(ChordAction::Quit) => PipeMsg::Quit,
+                    None => continue,
+                },
                 _ => continue,
             };
             if pipe_tx.send(msg).is_err() {
@@ -235,8 +250,7 @@ impl Pipeline {
         for msg in rx {
             match msg {
                 PipeMsg::Utterance(u) => self.on_utterance(u),
-                PipeMsg::Hotkey(HotkeyEvent::Secondary) => self.cycle_mode(),
-                PipeMsg::Hotkey(_) => {}
+                PipeMsg::CycleMode => self.cycle_mode(),
                 PipeMsg::SetMode(i) => {
                     let llm = self.sidecar.has_llm();
                     self.set_mode(Mode::from_index(i).clamp_available(llm));

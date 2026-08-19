@@ -73,9 +73,23 @@ pub enum HotkeyEvent {
         qpc: u64,
     },
     Cancel,
-    /// A secondary configured binding fired (e.g. the mode-cycle hotkey). The consumer
-    /// decides what it means — the source stays policy-free.
-    Secondary,
+    /// A configured secondary chord fired. The payload is the chord's index in the slice handed
+    /// to [`HotkeySource::start`]; the source stays policy-free and the consumer decides what
+    /// each index means. Indexed rather than named so adding a chord (theme cycle, quit) needs no
+    /// new event variant and no change on this side of the wall.
+    Chord(u8),
+}
+
+/// What a configured secondary chord means.
+///
+/// Lives here rather than in `nib-config` because both the config (which builds the chord list)
+/// and the pipeline (which acts on it) need the vocabulary, and the pipeline deliberately does
+/// not depend on the config crate. The hook itself stays policy-free — it only reports indices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChordAction {
+    CycleMode,
+    CycleStyle,
+    Quit,
 }
 
 /// Semantic injection route — never a Win32 constant, so macOS maps the same enum.
@@ -176,9 +190,10 @@ pub trait AudioCapture {
 /// their own thread, stream events to `sink`, self-heal stuck modifiers, and report health.
 /// macOS `CGEventTap` fits the same shape (see `HookHealth`).
 pub trait HotkeySource {
-    /// Begin streaming events. `ptt` is the push-to-talk combo; the optional `cycle` combo
-    /// emits [`HotkeyEvent::Secondary`] when fired. Runs until the implementation is dropped.
-    fn start(&self, ptt: Binding, cycle: Option<Binding>, sink: Sender<HotkeyEvent>);
+    /// Begin streaming events. `ptt` is the push-to-talk combo; each entry in `chords` emits
+    /// [`HotkeyEvent::Chord`] carrying its own index when fired. Runs until the implementation is
+    /// dropped.
+    fn start(&self, ptt: Binding, chords: Vec<Binding>, sink: Sender<HotkeyEvent>);
     fn health(&self) -> HookHealth;
 }
 
