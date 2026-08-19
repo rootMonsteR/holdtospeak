@@ -19,6 +19,7 @@ mod render;
 mod rng;
 mod style;
 
+use render::bars::BarsState;
 use render::hud::HudState;
 use render::volt::VoltState;
 
@@ -49,6 +50,7 @@ pub struct Anim {
     levels: [f32; NBARS],
     bands: [f32; 3],
     wave_phase: f32,
+    bars: BarsState,
     volt: VoltState,
     hud: HudState,
     t: f32,
@@ -60,6 +62,7 @@ impl Anim {
             levels: [0.0; NBARS],
             bands: [0.0; 3],
             wave_phase: 0.0,
+            bars: BarsState::new(),
             volt: VoltState::new(),
             hud: HudState::new(),
             t: 0.0,
@@ -93,7 +96,10 @@ impl Default for Anim {
 /// `mode` (0=Raw..3=Email) drives the per-theme accent color + the Hud mode label.
 pub fn render_frame(px: &mut [u32], style: OverlayStyle, a: &mut Anim, mode: u8) {
     match style {
-        OverlayStyle::Bars => render::bars::render_bars(px, &a.levels, mode),
+        OverlayStyle::Bars => {
+            a.bars.step(&a.levels);
+            a.bars.render(px, &a.levels, mode);
+        }
         OverlayStyle::Wave => {
             a.wave_phase += 0.13 + 0.24 * ((a.bands[0] + a.bands[1] + a.bands[2]) / 3.0);
             render::wave::render_wave(px, &a.bands, a.wave_phase, mode);

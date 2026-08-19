@@ -190,6 +190,31 @@ fn dump_frames(dir: &std::path::Path, style: OverlayStyle, mode: u8) -> std::io:
 mod tests {
     use super::*;
 
+    /// Dump every style to `$NIB_OVERLAY_DUMP` for visual iteration.
+    ///
+    /// Opt-in via the env var so a normal `cargo test` neither slows down nor litters the disk.
+    /// This is the intended way to actually LOOK at a theme while designing it: the frames are
+    /// composited over both a dark and a light background, because the overlay is translucent and
+    /// a design that reads well on one can disappear on the other.
+    #[test]
+    fn dump_styles_for_review() {
+        let Some(dir) = std::env::var_os("NIB_OVERLAY_DUMP") else {
+            return;
+        };
+        let base = std::path::PathBuf::from(dir);
+        // `NIB_OVERLAY_MODE` selects the accent (0=Raw..3=Email). Worth exercising: Raw's accent
+        // is near-white and Email's is magenta, so a status row tuned only against Auto's cyan
+        // can easily be unreadable in one of them.
+        let mode: u8 = std::env::var("NIB_OVERLAY_MODE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
+        for style in OverlayStyle::ALL {
+            let token = format!("{style:?}").to_ascii_lowercase();
+            dump_frames(&base.join(&token), *style, mode).unwrap();
+        }
+    }
+
     #[test]
     fn synth_bands_shape() {
         let mut bands = [0f32; 3];

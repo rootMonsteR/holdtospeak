@@ -9,6 +9,7 @@
 
 use crate::mode::mode_colors;
 use crate::paint::{blend_add, blend_add_pre, fill_round_rect, mix_rgb, premul, smoothstep};
+use crate::render::chrome;
 use crate::rng::Rng;
 use crate::{DT, OH, OW};
 
@@ -73,6 +74,9 @@ const VOLT_TINT: (u8, u8, u8) = (64, 140, 255);
 const VOLT_BG: (u8, u8, u8, u8) = (8, 10, 18, 150); // backdrop panel
 const VOLT_IDLE_INT: f32 = 0.65; // beam intensity floor
 const VOLT_SHIMMER: f32 = 0.08; // slow idle shimmer amplitude
+/// Beam centreline. Sits below the shared status row rather than at the panel's midpoint, so the
+/// bolt can never cross the mode label however far it swings.
+const VOLT_MID: f32 = (chrome::ROW_H + OH) as f32 / 2.0;
 const ACCENT_Y: i32 = OH - 8; // mode-colored accent line position
 const ACCENT_ALPHA: f32 = 0.50;
 
@@ -186,8 +190,8 @@ impl VoltState {
             jit_a,
             jit_b,
             jit_u: [0.0; JIT_OCTAVES],
-            path: [OH as f32 / 2.0; VOLT_COLS],
-            ghost: [OH as f32 / 2.0; VOLT_COLS],
+            path: [VOLT_MID; VOLT_COLS],
+            ghost: [VOLT_MID; VOLT_COLS],
             energy: 0.0,
             onset: 0.0,
             prev_energy: 0.0,
@@ -238,7 +242,7 @@ impl VoltState {
         }
 
         // rebuild the beam path
-        let cy = OH as f32 / 2.0;
+        let cy = VOLT_MID;
         let scale_coarse = JIT_IDLE + (1.0 - JIT_IDLE) * energy;
         let scale_fine =
             JIT_IDLE + (1.0 - JIT_IDLE) * (0.6 * energy + 1.2 * self.onset + bands[2]).min(1.0);
@@ -291,7 +295,7 @@ impl VoltState {
 
     /// Pick a high-displacement column (forks discharge off peaks) — best of 4 random samples.
     fn peak_column(&mut self) -> usize {
-        let cy = OH as f32 / 2.0;
+        let cy = VOLT_MID;
         let mut best = 0usize; // always overwritten: best_d starts below any real distance
         let mut best_d = -1.0;
         for _ in 0..4 {
@@ -307,7 +311,7 @@ impl VoltState {
 
     fn spawn_branch(&mut self) {
         let col = self.peak_column();
-        let cy = OH as f32 / 2.0;
+        let cy = VOLT_MID;
         let y0 = self.path[col];
         let away = if (y0 - cy).abs() < 0.5 {
             if self.rng.next_f32() < 0.5 {
@@ -342,7 +346,7 @@ impl VoltState {
 
     fn spawn_spark(&mut self) {
         let col = self.peak_column();
-        let cy = OH as f32 / 2.0;
+        let cy = VOLT_MID;
         let y0 = self.path[col];
         let away = if y0 < cy { -1.0 } else { 1.0 };
         let total = self.rng.range(SPARK_LIFE.0, SPARK_LIFE.1);
@@ -357,7 +361,33 @@ impl VoltState {
             };
         }
     }
+}
 
+/// A bright anchor node where the beam meets the panel edge.
+///
+/// Without these the bolt read as a stray scribble floating in an empty panel. With a terminal at
+/// each end it reads as current flowing BETWEEN two points, which is what makes the style legible
+/// at a glance rather than just busy.
+fn electrode(px: &mut [u32], x: i32, y: f32, int: f32) {
+    const R: i32 = 5;
+    for dy in -R..=R {
+        for dx in -R..=R {
+            let (ex, ey) = (x + dx, y as i32 + dy);
+            if !(0..OW).contains(&ex) || !(0..OH).contains(&ey) {
+                continue;
+            }
+            let d = ((dx * dx + dy * dy) as f32).sqrt();
+            let halo = (1.0 - d / R as f32).max(0.0).powi(2);
+            let p = &mut px[(ey * OW + ex) as usize];
+            blend_add(p, VOLT_TINT.0, VOLT_TINT.1, VOLT_TINT.2, 0.60 * int * halo);
+            if d < 1.9 {
+                blend_add(p, 255, 255, 255, 0.85 * int * (1.0 - d / 1.9));
+            }
+        }
+    }
+}
+
+impl VoltState {
     pub(crate) fn render(&self, px: &mut [u32], mode: u8) {
         for p in px.iter_mut() {
             *p = 0;
@@ -477,6 +507,18 @@ impl VoltState {
                 }
             }
         }
+
+        // Terminals last, so their white cores sit on top of the beam they anchor.
+        let term_int = (0.55 + 0.45 * self.energy).min(1.0);
+        electrode(px, VOLT_PAD, self.path[0], term_int);
+        electrode(
+            px,
+            VOLT_PAD + VOLT_COLS as i32 - 1,
+            self.path[VOLT_COLS - 1],
+            term_int,
+        );
+
+        chrome::status_row(px, mode, self.energy.clamp(0.0, 1.0));
     }
 }
 
