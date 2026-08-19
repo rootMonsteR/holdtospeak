@@ -7,8 +7,8 @@ your words appear at the cursor in whatever app you were already using.
 model download it works with the network cable unplugged — and it's built so you can *verify* that
 rather than take our word for it ([PRIVACY.md](PRIVACY.md)).
 
-> Status: **early**. The dictation core works and is used daily by its author. Packaging, a
-> settings UI, and installers are still landing. Bug reports welcome; rough edges expected.
+> Status: **early**. The dictation core works and is used daily by its author. A settings UI and
+> code signing are still to come. Bug reports welcome; rough edges expected.
 
 ## Why this exists
 
@@ -33,15 +33,26 @@ just unnecessary: a 2024-era speech model runs comfortably on a normal CPU.
 
 Requires **Windows 10/11 (x64)** and a microphone.
 
+Grab the installer or the portable ZIP from the
+[latest release](https://github.com/rootMonsteR/holdtospeak/releases/latest). The installer is
+per-user — it lands in `%LOCALAPPDATA%` and never asks for admin rights.
+
+On first launch it downloads the speech model (~460 MB, once) and tells you it's doing so. After
+that it needs no network at all.
+
+> **The binaries are not code-signed yet**, so Windows SmartScreen will show a
+> "Windows protected your PC" warning on first run — click **More info → Run anyway**. Signing
+> costs money and is on the list; until then, building from source below is the paranoid-friendly
+> path, and the release artifacts' SHA-256 hashes are published with each release.
+
+### From source
+
 ```
 git clone https://github.com/rootMonsteR/holdtospeak && cd holdtospeak
 pwsh -File scripts/fetch-sherpa.ps1     # GPL-free speech runtime (~7 MB)
 cargo build --release -p nib-core -p nib-asr-sidecar
 cargo run --release -p nib-core -- --sidecar native
 ```
-
-On first launch it downloads the speech model (~460 MB, once) and tells you it's doing so.
-Installers are coming; for now this is a build-from-source affair.
 
 ## Use
 

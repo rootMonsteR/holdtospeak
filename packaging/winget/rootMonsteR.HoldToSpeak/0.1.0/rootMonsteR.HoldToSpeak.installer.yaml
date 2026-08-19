@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: rootMonsteR.HoldToSpeak
+PackageVersion: 0.1.0
+MinimumOSVersion: 10.0.19041.0
+InstallerType: inno
+# Per-user install (Inno PrivilegesRequired=lowest): no UAC prompt, lands in %LOCALAPPDATA%.
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+# Inno registers HKCU\...\Uninstall\{AppId}_is1 - this is how winget detects an existing install.
+ProductCode: '{8F3A5C21-9D74-4E6B-B2A8-1C5E7D0F4A93}_is1'
+ReleaseDate: 2026-08-19
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/rootMonsteR/holdtospeak/releases/download/v0.1.0/HoldToSpeak-0.1.0-x64-setup.exe
+    InstallerSha256: F2112FFFF57DC743F4DE4BF201F3F4340584612586FF79790F28FDD9CFD92049
+ManifestType: installer
+ManifestVersion: 1.6.0
