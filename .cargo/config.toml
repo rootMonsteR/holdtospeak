@@ -1,0 +1,8 @@
+# Point `sherpa-onnx-sys` at the vendored **no-tts** prebuilt libs instead of letting its build.rs
+# download the default archive — the default one statically links espeak-ng (GPLv3), which must
+# never ship in a product with closed paid tiers. Run `scripts/fetch-sherpa.ps1` to populate this
+# (it also verifies the binary is espeak-free). See docs/licenses/COMMERCIAL-USE-REGISTER.md.
+#
+# Side benefit: builds no longer fetch an 8 MB archive from GitHub Releases on every clean build.
+[env]
+SHERPA_ONNX_LIB_DIR = { value = "vendor/sherpa-onnx-v1.13.5-win-x64-shared-MT-Release-no-tts-lib/lib", relative = true }

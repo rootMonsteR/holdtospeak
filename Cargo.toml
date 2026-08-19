@@ -1,0 +1,84 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nib-proto",
+    "crates/nib-platform",
+    "crates/nib-win32",
+    "crates/nib-audio",
+    "crates/nib-vad",
+    "crates/nib-asr",
+    "crates/nib-llm",
+    "crates/nib-cleanup",
+    "crates/nib-inject",
+    "crates/nib-target",
+    "crates/nib-config",
+    "crates/nib-models",
+    "crates/nib-hw",
+    "crates/nib-overlay",
+    "crates/nib-license",
+    "crates/nib-diag",
+    "crates/nib-pipeline",
+    "crates/nib-core",
+    "crates/nib-hookd",
+    "crates/nib-asr-sidecar",
+    "crates/nib-probe",
+    "bench/injection-matrix",
+    "xtask",
+]
+# `spikes/*` are standalone weeks-1-2 de-risk crates (each with its own Cargo.toml and the
+# heavy `windows` dep). Excluded so `cargo build --workspace` stays light; build them
+# individually, e.g. `cargo run --manifest-path spikes/s9-hookd/Cargo.toml`.
+exclude = ["spikes"]
+# NOTE: `parakeet-cpp-sys`, `llama-cpp-sys`, and `app/` (Tauri) are added once their
+# native build setup lands (weeks 3-4). Kept out of the default members so a fresh
+# `cargo check` needs no C toolchain, CUDA, or Node.
+
+[workspace.package]
+edition = "2021"
+license = "MIT"                       # See LICENSE and THIRD-PARTY-NOTICES.md.
+rust-version = "1.88"                 # native ASR (sherpa-onnx → icu 2.x) MSRV.
+
+# Shared dependency versions (crates opt in with `<dep>.workspace = true`). External versions
+# match the validated `spikes/vslice` prototype we are folding in.
+[workspace.dependencies]
+# external
+windows = "0.58"
+cpal = "0.15"
+hound = "3.5"
+rubato = "0.15"
+rustfft = "6"
+ureq = { version = "2", default-features = false, features = ["tls"] }
+sha2 = "0.10"
+tar = "0.4"
+bzip2 = "0.4"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+# internal (path) — the nib-* dependency graph
+nib-proto = { path = "crates/nib-proto" }
+nib-platform = { path = "crates/nib-platform" }
+nib-win32 = { path = "crates/nib-win32" }
+nib-audio = { path = "crates/nib-audio" }
+nib-asr = { path = "crates/nib-asr" }
+nib-cleanup = { path = "crates/nib-cleanup" }
+nib-inject = { path = "crates/nib-inject" }
+nib-target = { path = "crates/nib-target" }
+nib-config = { path = "crates/nib-config" }
+nib-overlay = { path = "crates/nib-overlay" }
+nib-models = { path = "crates/nib-models" }
+nib-pipeline = { path = "crates/nib-pipeline" }
+
+# Shared lints — the layering rule (only nib-win32 / *-sys may touch platform crates)
+# is enforced by `cargo xtask check-layering`, not by the compiler.
+[workspace.lints.rust]
+unsafe_code = "deny"                  # individual crates re-allow where genuinely needed (nib-win32, -sys, SPSC ring).
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"                       # sidecar overrides to "unwind" so a decode panic is catchable.
+
+[profile.dev]
+opt-level = 1                         # audio/inference stubs are unusably slow at opt-level 0.

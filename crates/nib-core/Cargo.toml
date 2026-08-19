@@ -1,0 +1,20 @@
+[package]
+name = "nib-core"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-core — headless single-process dictation app (composition root)"
+
+[[bin]]
+name = "nib-core"
+path = "src/main.rs"
+
+[dependencies]
+nib-platform = { workspace = true }
+nib-win32 = { workspace = true }
+nib-audio = { workspace = true }
+nib-asr = { workspace = true }
+nib-cleanup = { workspace = true }
+nib-config = { workspace = true }
+nib-models = { workspace = true }
+nib-pipeline = { workspace = true }

@@ -1,0 +1,16 @@
+[package]
+name = "injection-matrix"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "S3 de-risk harness: inject a sentinel per target, read it back via UIA, verify."
+
+[[bin]]
+name = "injection-matrix"
+path = "src/main.rs"
+
+[dependencies]
+nib-platform = { workspace = true }
+nib-inject = { workspace = true }
+nib-target = { workspace = true }
+nib-win32 = { workspace = true }

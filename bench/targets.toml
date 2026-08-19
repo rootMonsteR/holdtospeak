@@ -1,0 +1,89 @@
+# S3 injection-matrix targets — the minimal-but-real subset, growing toward the full 40-target
+# grid in docs/design/03-derisk-spike-program.md.
+#
+# Fields:
+#   name           display name; ALSO the expected foreground exe (`<name>.exe`) unless `exe` is set
+#   exe            override when the process name differs from `name`
+#   class          reporting bucket only
+#   launch         command the harness spawns (and kills); omit for `manual`
+#   launch_args    optional argument string
+#   focus_wait_ms  how long to wait for the window to take foreground
+#   readback       uia_value | uia_text (both use ValuePattern→TextPattern) | none
+#   expect_refuse  the injector MUST refuse (password fields); no text is typed
+#   manual         skip launching — focus it yourself, then run
+
+# --- Win32 / classic ---------------------------------------------------------------------------
+[[target]]
+name = "notepad"
+class = "office-win32"
+launch = "notepad"
+focus_wait_ms = 1500
+readback = "uia_text"       # Win11's XAML edit exposes TextPattern, not ValuePattern
+expect_refuse = false
+
+[[target]]
+name = "wordpad"
+exe = "wordpad"
+class = "office-win32"
+launch = "write"
+focus_wait_ms = 2000
+readback = "uia_text"
+expect_refuse = false
+manual = true               # not present on Win11 24H2+ — enable if installed
+
+# --- terminals ---------------------------------------------------------------------------------
+[[target]]
+name = "windowsterminal"
+class = "terminal"
+launch = "wt"
+focus_wait_ms = 2500
+readback = "uia_text"       # conhost/WT expose a text provider
+expect_refuse = false
+
+# --- browser -----------------------------------------------------------------------------------
+# An app-mode window with a data: URL textarea — a self-contained Chromium edit target that needs
+# no network and no profile setup.
+[[target]]
+name = "msedge"
+class = "browser"
+launch = "msedge"
+launch_args = "--app=data:text/html,<textarea autofocus style='width:99%;height:90%'></textarea> --new-window --no-first-run"
+focus_wait_ms = 5000
+readback = "uia_value"
+expect_refuse = false
+
+# --- safety: password refusal ------------------------------------------------------------------
+# Routing-level check: a profile marked is_password must yield Refuse (no live field required).
+[[target]]
+name = "password-field"
+class = "edge"
+readback = "none"
+expect_refuse = true
+
+# LIVE check that UIA IsPassword detection actually fires on a real credential field, so refusal
+# rests on evidence rather than on the routing table alone.
+[[target]]
+name = "msedge-password"
+exe = "msedge"
+class = "browser"
+launch = "msedge"
+launch_args = "--app=data:text/html,<input type=password autofocus style='width:99%'> --new-window --no-first-run"
+focus_wait_ms = 5000
+readback = "none"
+expect_refuse = true
+live_refuse = true          # probe the REAL focused control; is_password must be detected
+
+# --- manual / not yet automated ----------------------------------------------------------------
+[[target]]
+name = "discord"
+class = "electron"
+readback = "uia_value"
+expect_refuse = false
+manual = true
+
+[[target]]
+name = "code"
+class = "editor"
+readback = "uia_text"
+expect_refuse = false
+manual = true

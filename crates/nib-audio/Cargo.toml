@@ -1,0 +1,12 @@
+[package]
+name = "nib-audio"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-audio"
+
+[dependencies]
+nib-platform = { workspace = true }
+cpal = { workspace = true }
+hound = { workspace = true }
+rubato = { workspace = true }

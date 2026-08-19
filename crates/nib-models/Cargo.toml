@@ -1,0 +1,12 @@
+[package]
+name = "nib-models"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-models — first-run model download, verification, and install"
+
+[dependencies]
+ureq = { workspace = true }
+sha2 = { workspace = true }
+tar = { workspace = true }
+bzip2 = { workspace = true }

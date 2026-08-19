@@ -1,0 +1,8 @@
+[package]
+name = "nib-hookd"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib binary: nib-hookd"
+
+[dependencies]

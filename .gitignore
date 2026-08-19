@@ -1,0 +1,50 @@
+# Rust
+/target
+**/target
+*.pdb
+# Cargo.lock IS committed — this is a binary/application workspace, not a library.
+
+# Python
+__pycache__/
+*.pyc
+
+# Node / Tauri UI
+app/node_modules
+app/dist
+app/src-tauri/target
+
+# Models & large artifacts (never committed — downloaded on first run)
+*.gguf
+*.onnx
+*.bin
+*.safetensors
+/models
+**/models/blobs
+
+# Spike outputs / benchmark data / downloaded models
+spikes/**/*.jsonl
+spikes/**/report.html
+spikes/**/models/
+*.tar.bz2
+*.wav
+bench/**/*.jsonl
+
+# Local secrets / signing
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Vendored sherpa-onnx prebuilt libs (fetched by scripts/fetch-sherpa.ps1; ~21 MB of binaries).
+/vendor/
+
+# Installer build artifacts (built by packaging/build-installer.ps1).
+/packaging/out/

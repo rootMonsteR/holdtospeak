@@ -1,0 +1,9 @@
+[package]
+name = "nib-target"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-target — focused-app classification (terminal/IDE Literal mode)"
+
+[dependencies]
+nib-platform = { workspace = true }

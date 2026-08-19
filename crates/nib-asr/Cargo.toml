@@ -1,0 +1,8 @@
+[package]
+name = "nib-asr"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-asr — warm ASR + cleanup sidecar client (line protocol)"
+
+[dependencies]

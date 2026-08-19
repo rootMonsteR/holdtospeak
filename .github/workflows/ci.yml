@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No explicit toolchain action: `rust-toolchain.toml` is the single source of truth for the
+      # channel AND components, so CI can't drift from local builds. rustup (preinstalled on the
+      # runners) auto-installs it on the first cargo invocation.
+      - name: Toolchain
+        run: rustup toolchain install; rustup show active-toolchain; cargo --version
+      - uses: Swatinem/rust-cache@v2
+
+      # Vendors the **no-tts** sherpa-onnx libs and fails if espeak-ng (GPLv3) is present. The
+      # default prebuilt archive links espeak-ng, which must never ship — see
+      # docs/licenses/COMMERCIAL-USE-REGISTER.md.
+      - name: Fetch GPL-free sherpa-onnx libs
+        run: pwsh -File scripts/fetch-sherpa.ps1
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Layering check (only nib-win32 / *-sys may touch `windows::`)
+        run: cargo run -p xtask -- check-layering

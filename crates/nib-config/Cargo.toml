@@ -1,0 +1,9 @@
+[package]
+name = "nib-config"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-config — hotkey combo parsing / hotkeys.toml loading"
+
+[dependencies]
+nib-platform = { workspace = true }

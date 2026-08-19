@@ -1,0 +1,9 @@
+[package]
+name = "nib-inject"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-inject — pure route-chain orchestration over a TextInjector"
+
+[dependencies]
+nib-platform = { workspace = true }

@@ -1,0 +1,21 @@
+[package]
+name = "nib-asr-sidecar"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-asr-sidecar — native ASR sidecar (sherpa-onnx, Parakeet int8)"
+
+[[bin]]
+name = "nib-asr-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+nib-cleanup = { workspace = true }
+
+# Official k2-fsa bindings. Pinned exactly: build.rs derives the prebuilt-archive URL from the
+# crate version, so crate and native libs can never skew. `shared` links the ~22 MB DLL set
+# (sherpa-onnx-c-api.dll + onnxruntime) and copies it next to the binary — no cmake, no C build.
+[dependencies.sherpa-onnx]
+version = "=1.13.5"
+default-features = false
+features = ["shared"]

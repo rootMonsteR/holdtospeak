@@ -1,0 +1,8 @@
+[package]
+name = "nib-hw"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-hw"
+
+[dependencies]

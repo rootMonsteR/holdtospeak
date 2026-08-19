@@ -1,0 +1,10 @@
+[package]
+name = "nib-cleanup"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-cleanup — cleanup Mode enum + per-target mode selection"
+
+[dependencies]
+nib-platform = { workspace = true }
+nib-target = { workspace = true }

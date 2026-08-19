@@ -1,0 +1,6 @@
+[toolchain]
+# Bumped from 1.82 → 1.88: the native ASR sidecar (sherpa-onnx) pulls transitive deps (icu 2.x
+# via the build-time downloader) whose MSRV is 1.88. Pinned for reproducible CI; raise as needed.
+channel = "1.88"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-pc-windows-msvc"]

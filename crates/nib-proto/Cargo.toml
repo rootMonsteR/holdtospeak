@@ -1,0 +1,9 @@
+[package]
+name = "nib-proto"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-proto"
+
+[dependencies]
+nib-platform = { workspace = true }
