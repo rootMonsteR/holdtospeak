@@ -13,7 +13,9 @@ use nib_audio::Capture;
 use nib_cleanup::Mode;
 use nib_pipeline::{hotkey_forwarder, PipeMsg, Pipeline};
 use nib_platform::Autostart;
-use nib_platform::{HotkeyEvent, HotkeySource, PathLayout, TargetProbe, TextInjector};
+use nib_platform::{
+    HotkeyEvent, HotkeySource, InputWitness, PathLayout, TargetProbe, TextInjector,
+};
 use nib_win32::{
     OverlayStyle, TrayCommand, Win32Autostart, Win32Hotkey, Win32Injector, Win32Overlay,
     Win32Paths, Win32TargetProbe, Win32Tray,
@@ -79,6 +81,24 @@ fn acquire_model(data: &Path, dev: &Path) -> Result<PathBuf, String> {
         println!("  model installed to {}\n", installed.dir.display());
     }
     Ok(installed.dir)
+}
+
+/// Report a fatal startup failure and exit — WITHOUT the message disappearing with the window.
+///
+/// Every startup failure used to be `eprintln!` + `exit(1)`. When the app is launched from a
+/// shortcut, a double-click or the installer's "run now" checkbox, Windows gives it a private
+/// console that is destroyed the instant the process exits, so the user sees a window flash and
+/// vanish with no explanation — the reported "it force closed and disappeared". Pause only when we
+/// actually own the console; launched from a terminal (or with output redirected) the text stays
+/// on screen and pausing would hang scripts.
+fn fatal(msg: &str) -> ! {
+    eprintln!("\n{msg}");
+    if nib_win32::owns_console() {
+        eprintln!("\nPress Enter to close this window...");
+        let mut sink = String::new();
+        let _ = std::io::stdin().read_line(&mut sink);
+    }
+    std::process::exit(1);
 }
 
 /// Resolve an asset: an explicit `env_var` override wins; else the installed location if it
@@ -192,14 +212,12 @@ fn main() {
             Some(p) => PathBuf::from(p),
             None => match acquire_model(&data, &dev) {
                 Ok(p) => p,
-                Err(e) => {
-                    eprintln!("\nCould not obtain the speech model: {e}");
-                    eprintln!(
-                        "Nib needs it once, then works entirely offline. Retry, or point it at an \
-                         existing copy with --model-dir / NIB_ASR_MODEL_DIR."
-                    );
-                    std::process::exit(1);
-                }
+                Err(e) => fatal(&format!(
+                    "Could not obtain the speech model: {e}\n\
+                     HoldToSpeak needs it once, then works entirely offline. Check your internet \
+                     connection and run it again, or point it at an existing copy with \
+                     --model-dir / NIB_ASR_MODEL_DIR."
+                )),
             },
         },
         llm_model: resolve_asset(
@@ -242,19 +260,34 @@ fn main() {
             SidecarKind::Python => " + cleanup",
         }
     );
-    let sidecar = match Sidecar::spawn(cfg) {
+    // Start the sidecar, retrying ONCE before giving up. When sherpa-onnx/onnxruntime fails while
+    // loading the model it takes the whole sidecar process down — observed both as a null
+    // dereference and as a fail-fast abort — rather than returning an error we could inspect, so
+    // the recogniser's own `create() -> None` check never gets the chance to run. That failure has
+    // been seen to be transient (the very next launch succeeds), which is exactly the case a retry
+    // is for: it costs one extra model load instead of costing the user the whole session.
+    let sidecar = match Sidecar::spawn(cfg.clone()) {
         Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to start ASR sidecar: {e}");
-            match sidecar_kind {
-                SidecarKind::Native => {
-                    eprintln!("(Build it: cargo build --release -p nib-asr-sidecar — see README.)")
+        Err(first) => {
+            eprintln!("ASR engine failed to start ({first}) — retrying once...");
+            match Sidecar::spawn(cfg) {
+                Ok(s) => s,
+                Err(second) => {
+                    let hint = match sidecar_kind {
+                        SidecarKind::Native =>
+                            "If you built from source, build the engine with:\n  \
+                             cargo build --release -p nib-asr-sidecar\n\
+                             Otherwise please report this at \
+                             https://github.com/rootMonsteR/holdtospeak/issues with the text above.",
+                        SidecarKind::Python =>
+                            "Needs Python on PATH with sherpa-onnx + the Parakeet model — see README.",
+                    };
+                    fatal(&format!(
+                        "The speech engine could not start (tried twice).\n  \
+                         1st attempt: {first}\n  2nd attempt: {second}\n\n{hint}"
+                    ))
                 }
-                SidecarKind::Python => eprintln!(
-                    "(Need Python on PATH with sherpa-onnx + the Parakeet model — see README.)"
-                ),
             }
-            std::process::exit(1);
         }
     };
     // Only offer modes the running sidecar can serve: without an LLM, Polish/Email fall back to
@@ -263,10 +296,11 @@ fn main() {
     let mode = mode.clamp_available(llm);
     let capture = match Capture::start() {
         Ok(c) => c,
-        Err(e) => {
-            eprintln!("Failed to open microphone: {e}");
-            std::process::exit(1);
-        }
+        Err(e) => fatal(&format!(
+            "Could not open the microphone: {e}\n\
+             Check that a microphone is connected, and that Windows allows desktop apps to use \
+             it (Settings → Privacy & security → Microphone)."
+        )),
     };
     println!("Ready.  mic: {}", capture.device_name());
 
@@ -274,6 +308,10 @@ fn main() {
     let injector: Box<dyn TextInjector> = Box::new(Win32Injector);
     // Shared: the pipeline snapshots with it, and the hotkey forwarder warms it on key-down.
     let probe: Arc<dyn TargetProbe + Send + Sync> = Arc::new(Win32TargetProbe);
+    // Count the user's own keystrokes so the pipeline can tell whether the caret is still where
+    // it left it. Installed before the hook starts, or the first keystrokes would go unseen.
+    let user_input = InputWitness::default();
+    Win32Hotkey::watch_user_input(user_input.clone());
     let hotkey = Win32Hotkey;
     let hotkeys_path = resolve_asset(
         "NIB_HOTKEYS",
@@ -372,6 +410,7 @@ fn main() {
         sidecar,
         mode,
         current_mode,
+        user_input,
     );
     pipeline.run(rx);
     drop(pipeline); // Sidecar::Drop shuts the Python child down here

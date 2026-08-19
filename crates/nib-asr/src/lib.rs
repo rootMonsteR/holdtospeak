@@ -21,6 +21,9 @@ pub enum SidecarKind {
 
 /// Where to find the sidecar (native exe or Python script), the ASR model dir, the cleanup GGUF,
 /// and the dictionary.
+///
+/// `Clone` so a failed startup can be retried with the same configuration.
+#[derive(Clone)]
 pub struct SidecarConfig {
     pub kind: SidecarKind,
     /// The native sidecar exe, or the Python script — whichever `kind` selects.
@@ -144,7 +147,18 @@ impl Sidecar {
         let caps = loop {
             line.clear();
             if stdout.read_line(&mut line).unwrap_or(0) == 0 {
-                return Err("asr sidecar exited before READY".into());
+                // Name the exit code. A crash inside sherpa-onnx/onnxruntime surfaces here as an
+                // access violation (0xC0000005) or a fail-fast abort (0xC0000409); a bad argument
+                // surfaces as our own exit(1). Without the code every one of those reads as the
+                // same opaque "exited before READY", which is useless in a bug report.
+                let how = match child.wait() {
+                    Ok(st) => match st.code() {
+                        Some(c) => format!("exit code {c} (0x{:08X})", c as u32),
+                        None => "terminated without an exit code".to_string(),
+                    },
+                    Err(e) => format!("exit status unavailable: {e}"),
+                };
+                return Err(format!("asr sidecar exited before READY — {how}"));
             }
             let t = line.trim();
             if t == "READY" {

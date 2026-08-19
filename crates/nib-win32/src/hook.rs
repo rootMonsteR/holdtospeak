@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering::SeqCst};
 use std::sync::mpsc::Sender;
 use std::sync::OnceLock;
 
-use nib_platform::{Binding, HookHealth, HotkeyEvent, HotkeySource};
+use nib_platform::{Binding, HookHealth, HotkeyEvent, HotkeySource, InputWitness};
 use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Performance::QueryPerformanceCounter;
@@ -38,6 +38,9 @@ static CYCLE_ARMED: AtomicBool = AtomicBool::new(false);
 static WIN_LEAKED: AtomicBool = AtomicBool::new(false);
 static RECORDING: AtomicBool = AtomicBool::new(false);
 static SINK: OnceLock<Sender<HotkeyEvent>> = OnceLock::new();
+/// Set when the composition root wants user keystrokes reported (see
+/// [`Win32Hotkey::watch_user_input`]).
+static USER_INPUT: OnceLock<InputWitness> = OnceLock::new();
 
 fn is_ctrl(vk: u16) -> bool {
     vk == VK_LCONTROL.0 || vk == VK_RCONTROL.0 || vk == VK_CONTROL.0
@@ -171,6 +174,17 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
             }
         }
 
+        // Anything the USER types invalidates the pipeline's smart-spacing memory: once a real
+        // keystroke lands we no longer know what sits before the caret. Modifiers alone change no
+        // text, and our own injected input never reaches here (INJECT_MAGIC is filtered above), so
+        // non-modifier key-downs are exactly the signal. Placed AFTER the cycle-hotkey block so the
+        // swallowed mode-cycle key isn't mistaken for typing.
+        if down && mb == 0 {
+            if let Some(w) = USER_INPUT.get() {
+                w.note();
+            }
+        }
+
         // push-to-talk: emit PttDown/PttUp on the combo-held edge.
         let pm = PTT_MODS.load(SeqCst);
         let combo = pm != 0 && (mods & pm) == pm;
@@ -201,6 +215,14 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
 /// The global push-to-talk hotkey source. `start` installs the hook on a dedicated thread.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Win32Hotkey;
+
+impl Win32Hotkey {
+    /// Report user keystrokes into `witness`, so the pipeline can tell whether the caret has moved
+    /// since it last injected text. Call before [`HotkeySource::start`]; a second call is ignored.
+    pub fn watch_user_input(witness: InputWitness) {
+        let _ = USER_INPUT.set(witness);
+    }
+}
 
 impl HotkeySource for Win32Hotkey {
     fn start(&self, ptt: Binding, cycle: Option<Binding>, sink: Sender<HotkeyEvent>) {

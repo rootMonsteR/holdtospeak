@@ -10,8 +10,40 @@
 #![forbid(unsafe_code)]
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::time::Duration;
+
+/// A running count of input the **user** produced, shared from the platform's keyboard hook to
+/// the pipeline.
+///
+/// Deliberately a plain atomic counter rather than a trait: it carries no OS concepts, so it can
+/// live on this side of the wall and let `nib-pipeline` ask "did the user touch the keyboard since
+/// I last typed?" without knowing that a keyboard hook exists.
+///
+/// Why the pipeline needs it: smart spacing remembers whether *our* last injection ended in
+/// whitespace, but that memory describes the caret as we left it. If the user has typed, moved the
+/// caret, or pressed space in between, the memory is stale and applying it produces a stray space.
+#[derive(Debug, Default, Clone)]
+pub struct InputWitness(Arc<AtomicU64>);
+
+impl InputWitness {
+    /// Record one piece of user-originated input.
+    ///
+    /// The platform hook must call this **only** for genuine keystrokes — text this app
+    /// synthesises has to be filtered out first, or every injection would invalidate its own
+    /// spacing memory and consecutive utterances would never join up.
+    pub fn note(&self) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The current count. Only ever compared against an earlier reading for equality, so
+    /// wrapping is irrelevant and `Relaxed` ordering is sufficient.
+    pub fn count(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
+    }
+}
 
 /// Health of the global keyboard hook. Exists in the trait because macOS `CGEventTap`
 /// gets OS-disabled exactly like Windows `LowLevelHooksTimeout` unhooks us — both need

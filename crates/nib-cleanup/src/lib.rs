@@ -8,7 +8,7 @@ mod dictionary;
 mod tidy;
 
 pub use dictionary::Dictionary;
-pub use tidy::auto_tidy;
+pub use tidy::{auto_tidy, polish_tidy, strip_discourse};
 
 use nib_platform::TargetProfile;
 use nib_target::is_literal_exe;
@@ -68,27 +68,35 @@ impl Mode {
         Mode::from_index((self.index() + 1) % 4)
     }
 
-    /// Whether this mode needs the LLM sidecar (Pro). Raw/Auto are fully deterministic.
+    /// Whether this mode needs the LLM sidecar (Pro).
+    ///
+    /// Raw, Auto AND Polish are all deterministic: free Polish strips discourse markers by rule,
+    /// which needs no model. Only Email genuinely rewrites prose, so only Email is Pro-gated.
+    /// Polish used to be listed here, which meant selecting it silently ran Auto instead — the
+    /// menu offered an option that did nothing.
     pub fn needs_llm(self) -> bool {
-        matches!(self, Mode::Polish | Mode::Email)
+        matches!(self, Mode::Email)
     }
 
     /// Next mode restricted to what the active sidecar supports: with `llm` the full cycle,
-    /// without it Raw ↔ Auto only (the free tier's deterministic modes).
+    /// without it Raw → Auto → Polish (the free tier's three deterministic modes).
     pub fn next_available(self, llm: bool) -> Mode {
         if llm {
             self.next()
-        } else if self == Mode::Raw {
-            Mode::Auto
         } else {
-            Mode::Raw
+            match self {
+                Mode::Raw => Mode::Auto,
+                Mode::Auto => Mode::Polish,
+                _ => Mode::Raw,
+            }
         }
     }
 
-    /// Clamp a requested mode to what the active sidecar supports (Pro modes fall back to Auto).
+    /// Clamp a requested mode to what the active sidecar supports. Without an LLM, Email falls
+    /// back to Polish — the strongest cleanup that can actually run — rather than to Auto.
     pub fn clamp_available(self, llm: bool) -> Mode {
         if !llm && self.needs_llm() {
-            Mode::Auto
+            Mode::Polish
         } else {
             self
         }

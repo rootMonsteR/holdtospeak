@@ -189,9 +189,186 @@ fn capitalize_first(token: &str) -> String {
     out
 }
 
+/// Discourse markers — meaningless in writing, but ONLY when they interrupt the sentence, which in
+/// a transcript shows up as commas on both sides (or the start of the utterance on the left).
+///
+/// That delimiter requirement is the entire safety story. "like" is filler in "it's, like, fine"
+/// and load-bearing in "I like this" or "things like that"; "you know" is filler in "it's, you
+/// know, tricky" and a real clause in "you know the answer". Without the commas there is no
+/// deterministic way to tell them apart, so we do not guess.
+const DISCOURSE: &[&[&str]] = &[
+    &["like"],
+    &["you", "know"],
+    &["i", "mean"],
+    &["you", "see"],
+    &["sort", "of"],
+    &["kind", "of"],
+    &["basically"],
+    &["actually"],
+    &["literally"],
+    &["obviously"],
+    &["honestly"],
+    &["essentially"],
+];
+
+/// Vague trailers ("...and stuff"). These hang off the END of a clause rather than interrupting
+/// it, so they are recognised by a following comma or the end of the utterance instead.
+const VAGUE_TRAILERS: &[&[&str]] = &[
+    &["and", "stuff"],
+    &["and", "things"],
+    &["and", "all", "that"],
+    &["and", "so", "on"],
+    &["or", "whatever"],
+    &["or", "something"],
+];
+
+/// Sentence punctuation carried at the end of a token: `"stuff,"` -> `","`.
+fn punct_suffix(tok: &str) -> String {
+    let tail: Vec<char> = tok
+        .chars()
+        .rev()
+        .take_while(|c| matches!(c, ',' | '.' | ';' | ':' | '!' | '?'))
+        .collect();
+    tail.into_iter().rev().collect()
+}
+
+/// A token reduced to its comparable word: surrounding punctuation stripped, lowercased.
+/// Apostrophes are kept so "I'm" stays one word.
+fn word_of(tok: &str) -> String {
+    tok.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'')
+        .to_ascii_lowercase()
+}
+
+/// Does `phrase` begin at `i`? Interior tokens must carry no punctuation — "you know" is a
+/// phrase, "you, know" is not.
+fn phrase_at(toks: &[&str], i: usize, phrase: &[&str]) -> bool {
+    if i + phrase.len() > toks.len() {
+        return false;
+    }
+    phrase.iter().enumerate().all(|(k, w)| {
+        word_of(toks[i + k]) == *w
+            && (k + 1 == phrase.len() || punct_suffix(toks[i + k]).is_empty())
+    })
+}
+
+/// Length of the filler phrase starting at `i`, if there is one.
+fn filler_len_at(toks: &[&str], i: usize, after_comma: bool) -> Option<usize> {
+    for p in DISCOURSE {
+        if after_comma && phrase_at(toks, i, p) && punct_suffix(toks[i + p.len() - 1]).contains(',')
+        {
+            return Some(p.len());
+        }
+    }
+    for p in VAGUE_TRAILERS {
+        if phrase_at(toks, i, p)
+            && (i + p.len() == toks.len() || !punct_suffix(toks[i + p.len() - 1]).is_empty())
+        {
+            return Some(p.len());
+        }
+    }
+    None
+}
+
+/// Remove conversational scaffolding that adds nothing to the written sentence.
+///
+/// Rule-based and delete-only: it can drop whole filler phrases but can never invent, reorder or
+/// reword anything. That is the honest ceiling of the deterministic approach — it makes a spoken
+/// sentence read cleanly; it cannot restructure one.
+pub fn strip_discourse(text: &str) -> String {
+    let toks: Vec<&str> = text.split_whitespace().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < toks.len() {
+        // Start-of-utterance counts as "after a comma": a leading "Basically," is just as much
+        // scaffolding as a mid-sentence one.
+        let after_comma = out
+            .last()
+            .map(|t| punct_suffix(t).contains(','))
+            .unwrap_or(true);
+        match filler_len_at(&toks, i, after_comma) {
+            Some(len) => {
+                // The phrase may have been carrying the clause's punctuation ("the software and
+                // stuff, just to..."). Hand it back to the preceding word so the sentence keeps
+                // its shape instead of losing a comma.
+                let trailing = punct_suffix(toks[i + len - 1]);
+                if !trailing.is_empty() {
+                    if let Some(last) = out.last_mut() {
+                        if punct_suffix(last).is_empty() {
+                            last.push_str(&trailing);
+                        }
+                    }
+                }
+                i += len;
+            }
+            None => {
+                out.push(toks[i].to_string());
+                i += 1;
+            }
+        }
+    }
+    out.join(" ")
+}
+
+/// Free-tier **Polish**: [`strip_discourse`] then [`auto_tidy`].
+///
+/// Auto stays deliberately light (fillers, casing, terminal punctuation) because it is the safe
+/// everyday default. Polish is where the user has explicitly opted into heavier editing.
+pub fn polish_tidy(text: &str) -> String {
+    auto_tidy(&strip_discourse(text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn polish_cleans_the_sentence_from_the_bug_report() {
+        // Verbatim from a real dictation. Auto left every discourse marker in place, which is
+        // what made Polish look broken.
+        assert_eq!(
+            polish_tidy(
+                "I'm just testing this, like, you know, testing the software and stuff, \
+                 just to make sure it can come up with a proper coherent sentence."
+            ),
+            "I'm just testing this, testing the software, just to make sure it can come up \
+             with a proper coherent sentence."
+        );
+    }
+
+    #[test]
+    fn polish_keeps_words_that_merely_look_like_fillers() {
+        // The whole reason the rule demands commas on both sides. Get this wrong and Polish
+        // silently eats real words, which is far worse than leaving a filler in.
+        assert_eq!(polish_tidy("I like this one"), "I like this one.");
+        assert_eq!(polish_tidy("do things like that"), "Do things like that.");
+        assert_eq!(polish_tidy("you know the answer"), "You know the answer.");
+        assert_eq!(polish_tidy("it actually works"), "It actually works.");
+        assert_eq!(polish_tidy("sort of thing"), "Sort of thing.");
+    }
+
+    #[test]
+    fn polish_removes_leading_scaffolding_and_vague_trailers() {
+        assert_eq!(
+            polish_tidy("Basically, we ship on Friday"),
+            "We ship on Friday."
+        );
+        assert_eq!(
+            polish_tidy("we tested the parser and stuff"),
+            "We tested the parser."
+        );
+        // The trailer hands its comma back, so the clause keeps its shape.
+        assert_eq!(
+            polish_tidy("we tested the parser and stuff, then shipped"),
+            "We tested the parser, then shipped."
+        );
+    }
+
+    #[test]
+    fn auto_stays_light_so_only_polish_is_aggressive() {
+        assert_eq!(auto_tidy("it's, like, fine"), "It's, like, fine.");
+        // strip_discourse only DELETES; casing and terminal punctuation stay auto_tidy's job.
+        assert_eq!(strip_discourse("it's, like, fine"), "it's, fine");
+    }
 
     #[test]
     fn strips_standalone_fillers_only() {

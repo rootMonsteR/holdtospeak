@@ -10,6 +10,7 @@
 #![allow(unsafe_code)]
 
 mod autostart;
+mod console;
 mod hook;
 mod inject;
 mod overlay;
@@ -20,6 +21,7 @@ mod tray;
 mod uia;
 
 pub use autostart::Win32Autostart;
+pub use console::owns_console;
 pub use hook::Win32Hotkey;
 pub use inject::Win32Injector;
 pub use overlay::Win32Overlay;

@@ -15,7 +15,7 @@
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-use nib_cleanup::{auto_tidy, Dictionary, Mode};
+use nib_cleanup::{auto_tidy, polish_tidy, Dictionary, Mode};
 use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, OfflineTransducerModelConfig, Wave};
 
 struct Args {
@@ -166,15 +166,17 @@ fn transcribe(
         return String::new();
     }
 
-    // Dictionary fixes apply in EVERY mode (incl. Raw). Auto adds the deterministic tidy.
-    // Polish/Email aren't served here (no LLM) — treated as Auto so a mis-set mode still cleans.
+    // Dictionary fixes apply in EVERY mode (incl. Raw). Auto adds the light deterministic tidy;
+    // Polish adds discourse-marker stripping on top. Email needs an LLM this build does not have,
+    // so it gets Polish — the strongest cleanup actually available — rather than pretending.
     let dicted = match dict {
         Some(d) => d.apply(&raw),
         None => raw.clone(),
     };
     match Mode::parse(mode) {
         Mode::Raw => dicted,
-        _ => auto_tidy(&dicted),
+        Mode::Auto => auto_tidy(&dicted),
+        Mode::Polish | Mode::Email => polish_tidy(&dicted),
     }
 }
 

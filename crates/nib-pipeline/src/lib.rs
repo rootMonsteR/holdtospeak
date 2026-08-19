@@ -15,7 +15,8 @@ use nib_audio::{write_wav_16k, CaptureControl};
 use nib_cleanup::{effective_mode, Mode};
 use nib_inject::inject_with_fallback;
 use nib_platform::{
-    AudioCapture, HotkeyEvent, InjectOutcome, TargetProbe, TextInjector, Utterance,
+    AudioCapture, HotkeyEvent, InjectOutcome, InputWitness, TargetProbe, TargetProfile,
+    TextInjector, Utterance,
 };
 
 /// Messages the pipeline's run loop consumes: a completed (already-frozen) utterance plus control
@@ -131,6 +132,44 @@ fn apply_spacing(text: &str, prev_ended_ws: Option<bool>) -> String {
     }
 }
 
+/// Identity of an injection target, for deciding whether the smart-spacing memory still applies.
+///
+/// Deliberately app + control shaped rather than a window handle: re-focusing the same edit box is
+/// the case we want to treat as continuous, and handles churn for reasons users don't perceive.
+fn target_key(t: &TargetProfile) -> String {
+    format!(
+        "{}|{}|{}",
+        t.exe,
+        t.control_type.as_deref().unwrap_or(""),
+        t.class_name.as_deref().unwrap_or("")
+    )
+}
+
+/// Whether the previous injection's "did it end in whitespace" memory may still be trusted.
+///
+/// The memory records what *we* last typed, not what is actually in front of the caret. The moment
+/// dictation moves to a different app or control, we no longer know what precedes the caret, and
+/// guessing produced a stray leading space. Returning `None` means "don't add a separator", which
+/// is the safe direction: a missing space is one keystroke to fix, a spurious one is invisible
+/// until it isn't.
+fn carry_spacing(
+    prev_target: Option<&str>,
+    cur_target: &str,
+    prev_ended_ws: Option<bool>,
+    prev_input: u64,
+    cur_input: u64,
+) -> Option<bool> {
+    let same_place = prev_target == Some(cur_target);
+    // The user typing, spacing or arrowing between utterances moves the caret somewhere we cannot
+    // see, so the memory of what WE last typed no longer describes what precedes it.
+    let untouched = prev_input == cur_input;
+    if same_place && untouched {
+        prev_ended_ws
+    } else {
+        None
+    }
+}
+
 /// The dictation pipeline. The concrete capture is `!Send`, so this must be created and `run` on
 /// one thread.
 pub struct Pipeline {
@@ -144,6 +183,15 @@ pub struct Pipeline {
     /// Whether the previously injected text ended in whitespace. `None` = nothing injected yet
     /// (so the first utterance never gets a leading space). Drives the smart-spacing heuristic.
     prev_ended_ws: Option<bool>,
+    /// Which target the previous injection went into. When focus moves elsewhere the spacing
+    /// memory above describes a caret that is no longer there, so it is discarded rather than
+    /// applied blind.
+    prev_target: Option<String>,
+    /// User keystrokes observed by the platform hook. Compared against `prev_input` to notice
+    /// that the caret was moved by hand between utterances.
+    user_input: InputWitness,
+    /// The witness reading taken when we last injected.
+    prev_input: u64,
 }
 
 impl Pipeline {
@@ -154,6 +202,7 @@ impl Pipeline {
         sidecar: Sidecar,
         mode: Mode,
         shared_mode: Arc<AtomicU8>,
+        user_input: InputWitness,
     ) -> Pipeline {
         shared_mode.store(mode.index(), SeqCst);
         Pipeline {
@@ -164,6 +213,9 @@ impl Pipeline {
             mode,
             shared_mode,
             prev_ended_ws: None,
+            prev_target: None,
+            prev_input: user_input.count(),
+            user_input,
         }
     }
 
@@ -257,11 +309,22 @@ impl Pipeline {
             None => return, // sidecar died; it already logged
         };
         let ms = t0.elapsed().as_millis();
+        let key = target_key(&target);
+        let typed = self.user_input.count();
+        self.prev_ended_ws = carry_spacing(
+            self.prev_target.as_deref(),
+            &key,
+            self.prev_ended_ws,
+            self.prev_input,
+            typed,
+        );
         let text = apply_spacing(&text, self.prev_ended_ws);
 
         match inject_with_fallback(self.injector.as_ref(), &text, &target) {
             InjectOutcome::Inserted => {
                 self.prev_ended_ws = Some(text.ends_with(|c: char| c.is_whitespace()));
+                self.prev_target = Some(key);
+                self.prev_input = typed;
                 let note = if target.is_terminal {
                     "  [→ Raw]"
                 } else {
@@ -338,6 +401,36 @@ mod tests {
         // Speech-level signal: a 0.15-amplitude tone is far above conversational noise floors.
         let speech: Vec<f32> = (0..8000).map(|i| (i as f32 * 0.08).sin() * 0.15).collect();
         assert!(rms(&speech) > thresh, "speech must not be gated");
+    }
+
+    #[test]
+    fn spacing_memory_is_dropped_when_focus_moves_or_user_types() {
+        // Same target, keyboard untouched: the memory is what makes consecutive utterances join
+        // up with a single space.
+        assert_eq!(
+            carry_spacing(Some("notepad|Edit|"), "notepad|Edit|", Some(false), 7, 7),
+            Some(false)
+        );
+        // SAME target, but the user typed in between — they may well have typed the separator
+        // themselves, which is exactly the reported double space. Add nothing.
+        assert_eq!(
+            carry_spacing(Some("notepad|Edit|"), "notepad|Edit|", Some(false), 7, 9),
+            None
+        );
+        // Different app: we no longer know what sits before the caret, so add nothing. This is the
+        // stray-leading-space case — dictating into a fresh window used to inherit the memory of
+        // the previous window's last injection.
+        assert_eq!(
+            carry_spacing(Some("notepad|Edit|"), "code|Edit|", Some(false), 7, 7),
+            None
+        );
+        // Different control in the SAME app (e.g. moving between fields) counts as a move too.
+        assert_eq!(
+            carry_spacing(Some("code|Edit|A"), "code|Edit|B", Some(false), 7, 7),
+            None
+        );
+        // Nothing injected yet.
+        assert_eq!(carry_spacing(None, "notepad|Edit|", None, 0, 0), None);
     }
 
     #[test]
