@@ -37,8 +37,8 @@ try {
 # Exactly what the app needs at runtime. nib-asr-sidecar.exe imports sherpa-onnx-c-api.dll, which
 # imports onnxruntime.dll; nothing links the cxx-api or the providers_shared DLL, so they stay out.
 $payload = @(
-    "nib-core.exe",
-    "nib-asr-sidecar.exe",
+    "HoldToSpeak.exe",
+    "HoldToSpeak-engine.exe",
     "sherpa-onnx-c-api.dll",
     "onnxruntime.dll"
 ) | ForEach-Object { Join-Path $bin $_ }

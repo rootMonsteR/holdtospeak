@@ -5,8 +5,11 @@ edition = "2021"
 publish = false
 description = "Nib crate: nib-core — headless single-process dictation app (composition root)"
 
+# The SHIPPED executable carries the product name, not the crate name. Users see this in the
+# install folder, Task Manager and their Start menu — and winget's validation looks for an
+# executable matching the package, which "nib-core.exe" is not.
 [[bin]]
-name = "nib-core"
+name = "HoldToSpeak"
 path = "src/main.rs"
 
 [dependencies]

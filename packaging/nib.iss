@@ -9,7 +9,7 @@
 ;   * everything lands under %LOCALAPPDATA%, alongside where the app already stores its model,
 ;   * uninstall removes only this user's copy.
 ;
-; Ships exactly the runtime set the app needs. Only TWO DLLs are required: nib-asr-sidecar.exe
+; Ships exactly the runtime set the app needs. Only TWO DLLs are required: HoldToSpeak-engine.exe
 ; imports sherpa-onnx-c-api.dll, which imports onnxruntime.dll. The cxx-api and
 ; providers_shared DLLs in the build output are referenced by nothing we link, so they stay out.
 ;
@@ -55,7 +55,7 @@ LicenseFile={#DocsDir}\LICENSE
 ; Surfaces the CC-BY-4.0 model attribution and the GPL-free runtime note before install.
 InfoBeforeFile={#DocsDir}\THIRD-PARTY-NOTICES.md
 UninstallDisplayName={#AppName}
-UninstallDisplayIcon={app}\nib-core.exe
+UninstallDisplayIcon={app}\HoldToSpeak.exe
 ; The wizard, and its Add/Remove entry, carry the same mark as the app itself.
 SetupIconFile={#IconFile}
 
@@ -66,8 +66,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "startupicon"; Description: "Start {#AppName} when I sign in to Windows"; GroupDescription: "Additional options:"; Flags: unchecked
 
 [Files]
-Source: "{#BinDir}\nib-core.exe";          DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BinDir}\nib-asr-sidecar.exe";   DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\HoldToSpeak.exe";        DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\HoldToSpeak-engine.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BinDir}\sherpa-onnx-c-api.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BinDir}\onnxruntime.dll";       DestDir: "{app}"; Flags: ignoreversion
 ; Licence obligations travel with the binaries, not just the repo.
@@ -76,12 +76,18 @@ Source: "{#DocsDir}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignorevers
 Source: "{#DocsDir}\PRIVACY.md";             DestDir: "{app}"; Flags: ignoreversion
 Source: "{#DocsDir}\README.md";              DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; Pre-0.1.4 installs shipped the binaries under their old internal names. Inno only cleans up
+; files the CURRENT install owns, so without this they would linger beside the renamed ones.
+Type: files; Name: "{app}\nib-core.exe"
+Type: files; Name: "{app}\nib-asr-sidecar.exe"
+
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\nib-core.exe"
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\nib-core.exe"; Tasks: startupicon
+Name: "{group}\{#AppName}"; Filename: "{app}\HoldToSpeak.exe"
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\HoldToSpeak.exe"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\nib-core.exe"; Description: "Start {#AppName} now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\HoldToSpeak.exe"; Description: "Start {#AppName} now"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; The model, dictionary and settings live outside {app}; leave them alone on uninstall so a
