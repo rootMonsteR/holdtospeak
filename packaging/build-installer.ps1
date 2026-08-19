@@ -15,7 +15,7 @@
   produced and the script says so, rather than failing outright.
 #>
 param(
-    [string]$Version = "0.1.2"
+    [string]$Version = "0.1.3"
 )
 $ErrorActionPreference = "Stop"
 

@@ -81,6 +81,10 @@ fn acquire_model(data: &Path, dev: &Path) -> Result<PathBuf, String> {
     Ok(installed.dir)
 }
 
+/// How long a fatal error stays on screen when nobody presses Enter. Long enough to read and
+/// screenshot, short enough that an unattended launcher isn't left waiting on a dead prompt.
+const FATAL_PAUSE_SECS: u64 = 60;
+
 /// Report a fatal startup failure and exit — WITHOUT the message disappearing with the window.
 ///
 /// Every startup failure used to be `eprintln!` + `exit(1)`. When the app is launched from a
@@ -92,9 +96,22 @@ fn acquire_model(data: &Path, dev: &Path) -> Result<PathBuf, String> {
 fn fatal(msg: &str) -> ! {
     eprintln!("\n{msg}");
     if nib_win32::owns_console() {
-        eprintln!("\nPress Enter to close this window...");
-        let mut sink = String::new();
-        let _ = std::io::stdin().read_line(&mut sink);
+        eprintln!(
+            "\nPress Enter to close this window (closes automatically in {FATAL_PAUSE_SECS}s)..."
+        );
+        // BOUNDED wait. The pause exists so a human can read the error before the console is
+        // destroyed — but plenty of launchers have no human at all: an installer's smoke test, a
+        // CI sandbox, a scheduled task. There, `owns_console()` is still true and an unbounded
+        // read blocks forever, turning a clean failure into a hung process. (Exactly what
+        // winget's validation sandbox hit.) Reading on a worker thread and giving up on a timeout
+        // serves both: the message stays up long enough to read, and nothing ever hangs.
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut sink = String::new();
+            let _ = std::io::stdin().read_line(&mut sink);
+            let _ = tx.send(());
+        });
+        let _ = rx.recv_timeout(std::time::Duration::from_secs(FATAL_PAUSE_SECS));
     }
     std::process::exit(1);
 }
