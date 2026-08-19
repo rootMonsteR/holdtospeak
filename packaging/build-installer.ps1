@@ -21,7 +21,10 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $bin = Join-Path $root "target\release"
-$docs = Join-Path $root "oss"
+# Licence/doc sources differ by layout: the monorepo keeps the public-facing docs in oss/, while
+# the exported public repo has them at its root. Support both so `build-installer.ps1` works for
+# an outside contributor who only ever sees the public repo.
+$docs = if (Test-Path (Join-Path $root "oss\LICENSE")) { Join-Path $root "oss" } else { $root }
 $out = Join-Path $PSScriptRoot "out"
 
 Write-Host "==> Building release binaries"
@@ -66,7 +69,7 @@ foreach ($d in @("LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md", "README.md")
     $p = Join-Path $docs $d
     if (Test-Path $p) { Copy-Item $p $stage }
 }
-$zip = Join-Path $out "Nib-$Version-x64.zip"
+$zip = Join-Path $out "HoldToSpeak-$Version-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
 Write-Host "==> ZIP:  $zip"
@@ -95,7 +98,7 @@ if (-not $iscc) {
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed ($LASTEXITCODE)" }
 
 Remove-Item $stage -Recurse -Force
-Write-Host "==> Setup: $(Join-Path $out "Nib-$Version-x64-setup.exe")"
+Write-Host "==> Setup: $(Join-Path $out "HoldToSpeak-$Version-x64-setup.exe")"
 Write-Host ""
 Write-Host "Both artifacts are UNSIGNED. SmartScreen will warn users until the binaries are signed"
 Write-Host "(see the launch checklist); signing is a prerequisite for a public release, not a nicety."

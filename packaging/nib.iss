@@ -26,7 +26,7 @@
   #define BinDir "..\target\release"
 #endif
 #ifndef DocsDir
-  #define DocsDir "..\oss"
+  #define DocsDir ".."
 #endif
 
 [Setup]
