@@ -1,0 +1,10 @@
+[package]
+name = "nib-ortload-sys"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Nib crate: nib-ortload-sys — pin the ONNX Runtime the process loads to the copy we ship"
+
+[dependencies.windows]
+workspace = true
+features = ["Win32_Foundation", "Win32_System_LibraryLoader"]

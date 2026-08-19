@@ -24,7 +24,9 @@ app/src-tauri/target
 # Spike outputs / benchmark data / downloaded models
 spikes/**/*.jsonl
 spikes/**/report.html
-spikes/**/models/
+# `models*` not `models/`: renaming the dir aside while testing the download path (models-hidden)
+# slipped a model file past the narrower rule.
+spikes/**/models*/
 *.tar.bz2
 *.wav
 bench/**/*.jsonl

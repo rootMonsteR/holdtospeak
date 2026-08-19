@@ -16,6 +16,6 @@ ReleaseDate: 2026-08-19
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/rootMonsteR/holdtospeak/releases/download/v0.1.1/HoldToSpeak-0.1.1-x64-setup.exe
-    InstallerSha256: 7E73DE03648475B65B5CB45AF13A429BD7252713ED6D9AB059FA2FD24EC4C395
+    InstallerSha256: 2588D5A5D0A56962562845C9020B578032991AE935249818FBFFF4461C9C7502
 ManifestType: installer
 ManifestVersion: 1.6.0

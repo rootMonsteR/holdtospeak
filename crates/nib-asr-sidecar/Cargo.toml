@@ -11,6 +11,8 @@ path = "src/main.rs"
 
 [dependencies]
 nib-cleanup = { workspace = true }
+# Pins onnxruntime.dll to the copy we ship; see that crate's docs for why this is not optional.
+nib-ortload-sys = { workspace = true }
 
 # Official k2-fsa bindings. Pinned exactly: build.rs derives the prebuilt-archive URL from the
 # crate version, so crate and native libs can never skew. `shared` links the ~22 MB DLL set

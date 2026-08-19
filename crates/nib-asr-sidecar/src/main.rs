@@ -56,6 +56,16 @@ fn parse_args() -> Args {
 fn main() {
     let args = parse_args();
 
+    // Load OUR onnxruntime.dll before sherpa can trigger the implicit import. Windows ships an
+    // older ONNX Runtime in System32, and if our copy fails to load the loader silently falls back
+    // to that one — which sherpa then crashes inside, because it asks for an API version the older
+    // runtime does not have. Doing it explicitly turns that into a readable error, and the retry
+    // inside absorbs the transient first-run load failure that triggered it in the first place.
+    if let Err(e) = nib_ortload_sys::pin_beside_exe("onnxruntime.dll") {
+        eprintln!("nib-asr-sidecar: {e}");
+        std::process::exit(1);
+    }
+
     // Parakeet TDT transducer: encoder/decoder/joiner + tokens. Found by substring (preferring
     // int8) rather than exact filename, so any standard sherpa export works — the Python sidecar
     // globs the same way, and hardcoding `*.int8.onnx` rejected dirs it accepts.

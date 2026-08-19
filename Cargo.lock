@@ -718,6 +718,7 @@ name = "nib-asr-sidecar"
 version = "0.0.0"
 dependencies = [
  "nib-cleanup",
+ "nib-ortload-sys",
  "sherpa-onnx",
 ]
 
@@ -795,6 +796,13 @@ dependencies = [
  "sha2",
  "tar",
  "ureq",
+]
+
+[[package]]
+name = "nib-ortload-sys"
+version = "0.0.0"
+dependencies = [
+ "windows 0.58.0",
 ]
 
 [[package]]

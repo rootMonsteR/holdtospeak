@@ -21,6 +21,7 @@ members = [
     "crates/nib-core",
     "crates/nib-hookd",
     "crates/nib-asr-sidecar",
+    "crates/nib-ortload-sys",
     "crates/nib-probe",
     "bench/injection-matrix",
     "xtask",
@@ -66,6 +67,7 @@ nib-config = { path = "crates/nib-config" }
 nib-overlay = { path = "crates/nib-overlay" }
 nib-models = { path = "crates/nib-models" }
 nib-pipeline = { path = "crates/nib-pipeline" }
+nib-ortload-sys = { path = "crates/nib-ortload-sys" }
 
 # Shared lints — the layering rule (only nib-win32 / *-sys may touch platform crates)
 # is enforced by `cargo xtask check-layering`, not by the compiler.
