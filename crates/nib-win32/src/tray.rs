@@ -29,15 +29,12 @@ pub enum TrayCommand {
     SetMode(u8),
     SetStyle(u8),
     CycleMode,
-    /// Open (or focus) the settings window.
-    OpenSettings,
     Quit,
 }
 
 const CB_MSG: u32 = WM_APP + 1;
 const ID_MODE_BASE: usize = 1001; // + mode index (0..=3)
 const ID_QUIT: usize = 1009;
-const ID_SETTINGS: usize = 1010;
 const ID_STYLE_BASE: usize = 1101; // + OverlayStyle::index()
 
 const MODE_LABELS: [&str; 4] = [
@@ -110,16 +107,10 @@ unsafe fn tray_icon(hinst: HINSTANCE) -> HICON {
     // pointer would go. `without_provenance` says exactly that — an address that is deliberately
     // not a real pointer — which is both what the API means and what keeps clippy's
     // dangling-pointer lint honest instead of silenced.
-    // Two resource ids are tried: 1 (the historical `winresource` embed) and 32512 — which is
-    // where `tauri-build` puts the application icon now that the settings window's build
-    // script owns the resource section. Either way the small-icon entry is what we want.
-    for res_id in [1usize, 32512] {
-        let id = PCWSTR(std::ptr::without_provenance(res_id));
-        if let Ok(h) = LoadImageW(hinst, id, IMAGE_ICON, cx, cy, LR_DEFAULTCOLOR) {
-            return HICON(h.0);
-        }
-    }
-    LoadIconW(None, IDI_APPLICATION).unwrap_or_default()
+    let id = PCWSTR(std::ptr::without_provenance(1));
+    LoadImageW(hinst, id, IMAGE_ICON, cx, cy, LR_DEFAULTCOLOR)
+        .map(|h| HICON(h.0))
+        .unwrap_or_else(|_| LoadIconW(None, IDI_APPLICATION).unwrap_or_default())
 }
 
 unsafe fn run() {
@@ -245,8 +236,6 @@ unsafe fn show_menu(hwnd: HWND) {
         );
     }
     let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-    append(menu, MF_STRING, ID_SETTINGS, "Settings…");
-    let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
     append(menu, MF_STRING, ID_QUIT, "Quit HoldToSpeak");
 
     let mut pt = POINT::default();
@@ -268,7 +257,6 @@ unsafe fn show_menu(hwnd: HWND) {
     let id = cmd.0 as usize;
     match id {
         ID_QUIT => send(TrayCommand::Quit),
-        ID_SETTINGS => send(TrayCommand::OpenSettings),
         i if (ID_MODE_BASE..ID_MODE_BASE + MODE_LABELS.len()).contains(&i) => {
             send(TrayCommand::SetMode((i - ID_MODE_BASE) as u8));
         }

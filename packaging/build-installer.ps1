@@ -30,8 +30,6 @@ $out = Join-Path $PSScriptRoot "out"
 Write-Host "==> Building release binaries"
 Push-Location $root
 try {
-    # The app shows this in Settings → About; the crate version is deliberately 0.0.0.
-    $env:HTS_VERSION = $Version
     & cargo build --release -p nib-core -p nib-asr-sidecar
     if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 } finally { Pop-Location }
