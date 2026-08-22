@@ -127,11 +127,8 @@ const PRIVATE_PATHS: &[&str] = &[
     "crates/nib-asr/sidecar",
     // Internal working notes.
     "TODO.md",
-    // holdtospeak.com source — hosted from the owner's cPanel, kept private.
-    "site",
-    // Local build inputs / outputs (`crates/nib-core/gen` is tauri-build's schema output).
+    // Local build inputs / outputs.
     "vendor",
-    "crates/nib-core/gen",
     "target",
     ".git",
     // The overlay directory itself is copied to the ROOT of the export, not nested inside it.
