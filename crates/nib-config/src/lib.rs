@@ -154,6 +154,31 @@ impl Hotkeys {
         }
         (b, a)
     }
+
+    /// Like [`Hotkeys::chords`] but positional: always three slots, in `CycleMode`, `CycleStyle`,
+    /// `Quit` order, with a disabled chord as an empty (never-matching) binding. The hook treats a
+    /// slot with no modifiers or no main key as inert, so this keeps slot *indices* stable — which
+    /// is what lets the settings window rebind live without the forwarder's action table drifting.
+    pub fn chord_slots(&self) -> (Vec<Binding>, Vec<ChordAction>) {
+        let inert = Binding {
+            keys: Vec::new(),
+            arming_ms: ARMING_MS,
+            suppress: true,
+        };
+        let slot = |b: &Option<Binding>| b.clone().unwrap_or_else(|| inert.clone());
+        (
+            vec![
+                slot(&self.cycle_mode),
+                slot(&self.cycle_style),
+                slot(&self.quit),
+            ],
+            vec![
+                ChordAction::CycleMode,
+                ChordAction::CycleStyle,
+                ChordAction::Quit,
+            ],
+        )
+    }
 }
 
 /// Apply one configured chord: an explicit `off`/`none` clears it, a valid combo replaces it,
@@ -167,6 +192,55 @@ fn set_chord(slot: &mut Option<Binding>, v: &str) {
     if m != 0 && key != 0 {
         *slot = binding_from_combo(v, true);
     }
+}
+
+/// Human-readable combo for a binding (`"Ctrl+Alt+M"`), the inverse of [`binding_from_combo`]:
+/// modifiers in Ctrl/Alt/Shift/Win order, then the main key by its config name.
+pub fn combo_name(b: &Binding) -> String {
+    b.keys
+        .iter()
+        .map(|&vk| match vk {
+            VK_CTRL => "Ctrl".to_string(),
+            VK_ALT => "Alt".to_string(),
+            VK_SHIFT => "Shift".to_string(),
+            VK_LWIN | 0x5C => "Win".to_string(),
+            0x20 => "Space".to_string(),
+            0x0D => "Enter".to_string(),
+            0x09 => "Tab".to_string(),
+            0x30..=0x5A => ((vk as u8) as char).to_string(),
+            0x70..=0x7B => format!("F{}", vk - 0x6F),
+            other => format!("VK{other:#04X}"),
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+/// Write `hotkeys.toml` from `hk` in the same shape [`load`] reads — a disabled chord is written
+/// as `off`, so the file always says what every key does (and doesn't).
+pub fn save(path: &Path, hk: &Hotkeys) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let chord = |b: &Option<Binding>| match b {
+        Some(b) => format!("\"{}\"", combo_name(b)),
+        None => "off".to_string(),
+    };
+    let text = format!(
+        "\
+# HoldToSpeak hotkeys. Plain text on purpose — edit freely; `off` disables a chord.
+# Modifiers: Ctrl, Alt, Shift, Win. Push-to-talk is modifiers only; the others need a main key.
+
+ptt         = \"{ptt}\"
+cycle_mode  = {cycle_mode}
+cycle_style = {cycle_style}
+quit        = {quit}
+",
+        ptt = combo_name(&hk.ptt),
+        cycle_mode = chord(&hk.cycle_mode),
+        cycle_style = chord(&hk.cycle_style),
+        quit = chord(&hk.quit),
+    );
+    std::fs::write(path, text)
 }
 
 /// Load hotkeys from a simple `key = combo` file (`hotkeys.toml`). Blank / `#`-comment lines are
@@ -210,6 +284,68 @@ mod tests {
     /// The hook reports a chord by INDEX, so the pairing between position and meaning is a
     /// contract. Disabling one chord must shift the rest's indices *together with* their actions,
     /// never renumber one without the other — that would silently rebind a key to a new action.
+    /// `save` is what the settings window writes; `load` is what the app reads on the next start.
+    /// They must agree exactly, with a disabled chord surviving as `off`.
+    #[test]
+    fn save_then_load_round_trips_including_off() {
+        let dir = std::env::temp_dir().join(format!("nib_hk_{}", std::process::id()));
+        let p = dir.join("hotkeys.toml");
+        let hk = Hotkeys {
+            ptt: binding_from_combo("Ctrl+Shift", true).unwrap(),
+            cycle_mode: binding_from_combo("Ctrl+Alt+F3", true),
+            cycle_style: None,
+            quit: binding_from_combo("Win+Shift+Q", true),
+        };
+        save(&p, &hk).unwrap();
+        let back = load(&p);
+        assert_eq!(combo_name(&back.ptt), "Ctrl+Shift");
+        assert_eq!(
+            back.cycle_mode.as_ref().map(combo_name).as_deref(),
+            Some("Ctrl+Alt+F3")
+        );
+        assert!(back.cycle_style.is_none(), "off must read back as disabled");
+        assert_eq!(
+            back.quit.as_ref().map(combo_name).as_deref(),
+            Some("Shift+Win+Q")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `combo_name` is the inverse of `binding_from_combo` (modulo canonical modifier order).
+    #[test]
+    fn combo_name_inverts_parsing() {
+        for (input, canonical) in [
+            ("Ctrl+Win", "Ctrl+Win"),
+            ("win+ctrl", "Ctrl+Win"),
+            ("Ctrl+Alt+M", "Ctrl+Alt+M"),
+            ("Shift+Space", "Shift+Space"),
+            ("Alt+F12", "Alt+F12"),
+        ] {
+            let b = binding_from_combo(input, true).unwrap();
+            assert_eq!(combo_name(&b), canonical, "{input}");
+        }
+    }
+
+    /// Positional slots never shift: a disabled chord is an inert placeholder, not a gap.
+    #[test]
+    fn chord_slots_are_positional_and_inert_when_off() {
+        let hk = Hotkeys {
+            cycle_mode: None,
+            ..Hotkeys::default()
+        };
+        let (b, a) = hk.chord_slots();
+        assert_eq!(b.len(), 3);
+        assert!(b[0].keys.is_empty(), "disabled slot is inert");
+        assert_eq!(
+            a,
+            vec![
+                ChordAction::CycleMode,
+                ChordAction::CycleStyle,
+                ChordAction::Quit
+            ]
+        );
+    }
+
     #[test]
     fn chord_indices_travel_with_their_actions() {
         let (b, a) = Hotkeys::default().chords();

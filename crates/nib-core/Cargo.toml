@@ -3,7 +3,7 @@ name = "nib-core"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Nib crate: nib-core — headless single-process dictation app (composition root)"
+description = "Nib crate: nib-core — single-process dictation app (composition root) + settings window"
 
 # The SHIPPED executable carries the product name, not the crate name. Users see this in the
 # install folder, Task Manager and their Start menu — and winget's validation looks for an
@@ -21,6 +21,13 @@ nib-cleanup = { workspace = true }
 nib-config = { workspace = true }
 nib-models = { workspace = true }
 nib-pipeline = { workspace = true }
+# The settings window (`src/settings_ui.rs`): a WebView2 window on its own thread, static HTML in
+# `ui/` embedded at compile time — no Node, no bundler, no network.
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
-[target.'cfg(windows)'.build-dependencies]
-winresource = { workspace = true }
+[build-dependencies]
+# Embeds the app icon, version info and the per-monitor-DPI manifest (replaces winresource; the
+# two would fight over the resource section).
+tauri-build = { workspace = true }

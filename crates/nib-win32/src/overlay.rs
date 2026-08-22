@@ -48,14 +48,19 @@ impl Win32Overlay {
     ///   the tray's live theme switch + the mode label update instantly.
     /// - `listening` is polled EVERY frame: false→true shows the window (and resets `Anim` so each
     ///   activation replays the boot animation); true→false hides it.
+    /// - `enabled` is the user's overlay on/off switch (settings); when false the window stays
+    ///   hidden even while listening, so the setting can flip live without restarting.
     pub fn spawn(
         sampler: Box<dyn Fn(usize) -> Vec<f32> + Send>,
         style: Arc<AtomicU8>,
         mode: Arc<AtomicU8>,
         listening: Arc<AtomicBool>,
+        enabled: Arc<AtomicBool>,
         sample_rate: u32,
     ) {
-        std::thread::spawn(move || unsafe { run(sampler, style, mode, listening, sample_rate) });
+        std::thread::spawn(move || unsafe {
+            run(sampler, style, mode, listening, enabled, sample_rate)
+        });
     }
 }
 
@@ -68,8 +73,19 @@ unsafe fn run(
     style: Arc<AtomicU8>,
     mode: Arc<AtomicU8>,
     listening: Arc<AtomicBool>,
+    enabled: Arc<AtomicBool>,
     sample_rate: u32,
 ) {
+    // The process is per-monitor-DPI-aware (the settings window's WebView2 needs that to render
+    // crisply). This overlay is a fixed 460×84 px bitmap drawn for the classic 96-dpi virtual
+    // desktop, so this THREAD opts back out: DWM scales the layered window up on HiDPI displays
+    // exactly as it did before the process became aware, instead of shrinking it.
+    {
+        use windows::Win32::UI::HiDpi::{
+            SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED,
+        };
+        let _ = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
+    }
     let hinst = GetModuleHandleW(None).unwrap();
     let class: Vec<u16> = "NibOverlay\0".encode_utf16().collect();
     let wc = WNDCLASSW {
@@ -157,8 +173,9 @@ unsafe fn run(
             anim = Anim::new();
             prev_style = cur_style;
         }
-        // Visible only while push-to-talk is held (`listening`); idle it hides and skips work.
-        let active = listening.load(SeqCst);
+        // Visible only while push-to-talk is held (`listening`) AND the overlay is switched on;
+        // idle it hides and skips work.
+        let active = listening.load(SeqCst) && enabled.load(SeqCst);
         if active {
             // false->true: a fresh activation. Reset the clocks so each PTT press replays the
             // boot animation rather than resuming a stale timecode from the previous hold.

@@ -107,6 +107,44 @@ pub fn ensure_template(path: &Path) -> std::io::Result<()> {
     std::fs::write(path, TEMPLATE)
 }
 
+/// Write `settings.toml` from `s`, in the same commented shape as [`TEMPLATE`] so a file the
+/// settings window saved stays as readable (and hand-editable) as one the app wrote on first run.
+pub fn save(path: &Path, s: &Settings) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let text = format!(
+        "\
+# HoldToSpeak settings. Plain text on purpose — edit freely, delete to restore defaults.
+# Unknown keys are ignored; a bad value falls back to the default rather than failing to start.
+
+# Cleanup mode at startup: raw | auto | polish
+mode = {mode}
+
+# Floating voice-spectrum overlay, shown only while push-to-talk is held.
+overlay = {overlay}
+overlay_style = {style}          # hud | volt | wave | bars
+
+# Speech is only sent to the recognizer above this RMS level, so a stray keypress
+# can't make the model hallucinate words. Raise in a noisy room, lower for a quiet mic.
+silence_rms = {rms}
+
+# native = the bundled Rust recognizer (no Python). python = dev/Pro sidecar with LLM cleanup.
+sidecar = {sidecar}
+
+# Start HoldToSpeak when you sign in to Windows.
+autostart = {autostart}
+",
+        mode = s.mode,
+        overlay = s.overlay,
+        style = s.overlay_style,
+        rms = s.silence_rms,
+        sidecar = s.sidecar,
+        autostart = s.autostart,
+    );
+    std::fs::write(path, text)
+}
+
 fn parse_bool(v: &str, default: bool) -> bool {
     match v.to_ascii_lowercase().as_str() {
         "true" | "yes" | "on" | "1" => true,
@@ -157,6 +195,29 @@ mod tests {
         let s = load(&p);
         assert_eq!(s.silence_rms, Settings::default().silence_rms);
         assert_eq!(s.overlay, Settings::default().overlay);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The settings window writes through `save`; whatever it writes must read back identically,
+    /// including non-default values, or a saved setting would silently revert on the next start.
+    #[test]
+    fn save_round_trips_every_field() {
+        let dir = std::env::temp_dir().join(format!("nib_set4_{}", std::process::id()));
+        let p = dir.join("settings.toml");
+        let s = Settings {
+            mode: "raw".into(),
+            overlay: false,
+            overlay_style: "volt".into(),
+            silence_rms: 0.0125,
+            sidecar: "python".into(),
+            autostart: true,
+        };
+        save(&p, &s).unwrap();
+        assert_eq!(load(&p), s);
+        // And the saved file stays human-readable: comments survive, one key per line.
+        let text = std::fs::read_to_string(&p).unwrap();
+        assert!(text.starts_with("# HoldToSpeak settings"));
+        assert!(text.contains("\noverlay_style = volt"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -1,36 +1,18 @@
-//! Embed the application icon into `nib-core.exe`.
-//!
-//! Without an icon resource Explorer, the taskbar, the Start-menu shortcut and the uninstall entry
-//! all fall back to the generic Windows executable icon, which makes an installed app look like a
-//! stray binary. The tray also reads the icon straight out of this resource (see `nib-win32`'s
-//! `tray.rs`), so embedding it here is what gives the whole product one identity.
+//! Build script: `tauri-build` embeds the settings window's assets manifest, the application icon
+//! (resource id 32512, which the tray reads back — see `nib-win32`'s `tray.rs`), the version
+//! info, and the per-monitor-DPI application manifest the WebView2 window needs to render crisply.
 //!
 //! The `.ico` itself is generated, not hand-drawn — see `assets/make-icon.py`, which is committed
 //! alongside it so the art is reproducible rather than an opaque binary nobody can regenerate.
 
 fn main() {
-    // Rebuild when the art changes, not just when the source does.
+    // Rebuild when the art or the UI changes, not just when Rust source does.
     println!("cargo:rerun-if-changed=../../assets/HoldToSpeak.ico");
+    println!("cargo:rerun-if-changed=tauri.conf.json");
+    println!("cargo:rerun-if-changed=ui");
     println!("cargo:rerun-if-changed=build.rs");
-
-    #[cfg(windows)]
-    {
-        let mut res = winresource::WindowsResource::new();
-        res.set_icon("../../assets/HoldToSpeak.ico");
-        res.set("ProductName", "HoldToSpeak");
-        res.set(
-            "FileDescription",
-            "HoldToSpeak — local push-to-talk dictation",
-        );
-        res.set("CompanyName", "rootMonsteR");
-        res.set(
-            "LegalCopyright",
-            "Copyright (c) 2026 rootMonsteR. MIT licensed.",
-        );
-        // A failure here must not be fatal: a source build on a machine without the Windows SDK
-        // resource compiler should still produce a working (if plain-looking) binary.
-        if let Err(e) = res.compile() {
-            println!("cargo:warning=could not embed the app icon: {e}");
-        }
-    }
+    // The product version shown in Settings → About (set by packaging/build-installer.ps1; a plain
+    // source build shows the 0.0.0 crate version as "source build").
+    println!("cargo:rerun-if-env-changed=HTS_VERSION");
+    tauri_build::build();
 }
