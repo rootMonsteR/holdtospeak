@@ -22,9 +22,8 @@ our word for it ([PRIVACY.md](PRIVACY.md)).
   <sub>The overlay while you hold the keys — a live voiceprint, the active cleanup mode, a signal meter. Gone the moment you let go.</sub>
 </p>
 
-> **Status: early.** The dictation core works and is used daily by its author; a settings window
-> (tray icon → **Settings…**) covers hotkeys, overlay, microphone, dictionary and diagnostics. Code
-> signing is still to come. Bug reports welcome; rough edges expected.
+> **Status: early.** The dictation core works and is used daily by its author. A settings UI and
+> code signing are still to come. Bug reports welcome; rough edges expected.
 
 ## Why this exists
 
@@ -86,7 +85,7 @@ Global hotkeys — these work in any app:
 | **Ctrl + Alt + O** | cycle overlay theme |
 | **Ctrl + Alt + Q** | quit |
 
-Plus the tray icon (modes, overlay themes, **Settings…**, quit), and in the console window: `m` to cycle mode,
+Plus the tray icon (modes, overlay themes, quit), and in the console window: `m` to cycle mode,
 `learn <heard> => <meant>` to teach it a word permanently, `q` to quit.
 
 Rebind in `%APPDATA%\HoldToSpeak\hotkeys.toml` — `off` disables one:

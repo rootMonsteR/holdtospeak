@@ -12,8 +12,6 @@ __pycache__/
 app/node_modules
 app/dist
 app/src-tauri/target
-# tauri-build writes its ACL schemas here on every build
-crates/nib-core/gen/
 
 # Models & large artifacts (never committed — downloaded on first run)
 *.gguf
