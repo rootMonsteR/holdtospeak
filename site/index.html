@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HoldToSpeak — hold two keys, talk, it types</title>
+  <meta name="description" content="Local, private push-to-talk dictation for Windows. Hold Ctrl + Win, speak, let go — text appears at your cursor in any app. No account, no cloud, no telemetry; works with the network cable unplugged.">
+  <meta name="theme-color" content="#0B1018">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="assets/icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="canonical" href="https://holdtospeak.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="HoldToSpeak — hold two keys, talk, it types">
+  <meta property="og:description" content="Local, private push-to-talk dictation for Windows. Your voice never leaves your machine.">
+  <meta property="og:url" content="https://holdtospeak.com/">
+  <meta property="og:image" content="https://holdtospeak.com/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="HoldToSpeak home"><img src="assets/icon.png" alt="" width="24" height="24">HoldToSpeak</a>
+    <nav class="nav-links" aria-label="Site">
+      <a href="#what">What it does</a>
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/rootMonsteR/holdtospeak">GitHub</a>
+      <a class="btn primary" href="https://github.com/rootMonsteR/holdtospeak/releases/latest" data-dl="setup">Download <span class="meta" data-dl-version>v0.1.3</span></a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Push-to-talk dictation · Windows · fully offline</div>
+        <h1>Hold two keys, talk, it&nbsp;types.</h1>
+        <p class="lede">Local, private dictation at the cursor — in terminals, IDEs, browsers and chat. Your voice never leaves your machine.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/rootMonsteR/holdtospeak/releases/latest" data-dl="setup">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.8 7.5L8 10.7l3.2-3.2M2.5 13.5h11"/></svg>
+            Download for Windows <span class="meta" data-dl-meta>v0.1.3 · 7.8 MB</span>
+          </a>
+          <a class="btn" href="https://github.com/rootMonsteR/holdtospeak">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.4.7 0-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.6.8 1.3.8 2.1 0 3.1-1.9 3.8-3.6 4 .3.2.6.7.6 1.5v2.2c0 .2.1.5.5.4A8 8 0 0 0 8 .2z"/></svg>
+            Source on GitHub
+          </a>
+        </div>
+        <p class="fine">Free and open source (MIT). Windows 10/11, x64. The binaries are not code-signed yet, so SmartScreen will ask once — <strong>More info → Run anyway</strong>, or check the SHA-256 on the release page.</p>
+      </div>
+      <div class="overlay-stage">
+        <span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <img src="assets/overlay-hud-live.png" width="460" height="84" alt="The HoldToSpeak overlay while dictating: a live voiceprint, the active cleanup mode and a signal meter">
+        <p class="cap">The overlay while you hold the keys — a live voiceprint, the active cleanup mode, a signal meter. Gone the moment you let go.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="proof" aria-label="Key facts">
+    <div class="wrap">
+      <div class="item"><div class="k"><span class="dot"></span>0 outbound connections</div><div class="v">Verify it yourself with one firewall rule — dictation keeps working.</div></div>
+      <div class="item"><div class="k">Cable unplugged, still works</div><div class="v">After a one-time 460 MB model download, it never touches the network again.</div></div>
+      <div class="item"><div class="k">Rust · MIT · open source</div><div class="v">Every Win32 call behind one crate, enforced in CI. Read it, build it, block it.</div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="what">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">What it does</div>
+        <h2>Works where dictation usually breaks.</h2>
+        <p>Cloud dictation ships your microphone to someone else's computer — a non-starter under an NDA, and unnecessary: a modern speech model runs comfortably on a normal CPU.</p>
+      </div>
+      <div class="grid cols-3">
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3" width="12.4" height="10" rx="1.5"/><path d="M4.5 6.3l2 1.7-2 1.7M8.5 9.7h3"/></svg></div>
+          <h3>Types into the apps that usually break</h3>
+          <p>Terminals, WSL, IDEs, browsers, chat apps, remote sessions — a per-target injection chain, not clipboard-paste-and-hope.</p>
+        </div>
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12.5l3-3M13.5 3.5l-3 3M8 5l3 3M6 10l4-4M3 13l2-2M11 5l2-2"/></svg></div>
+          <h3>Never rewrites your commands</h3>
+          <p>Focused on a terminal or code editor? Dictation drops to verbatim automatically, so <code>kubectl get pods -n kube-system</code> stays exactly that.</p>
+        </div>
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8l5 1.8v4c0 3-2.2 5.3-5 6.6-2.8-1.3-5-3.6-5-6.6v-4z"/><path d="M5.8 8l1.6 1.6L10.4 6.4"/></svg></div>
+          <h3>Refuses password fields</h3>
+          <p>The focused control is checked live through UI Automation. If it is a credential field, nothing is typed — ever.</p>
+        </div>
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.2h4.2a1.8 1.8 0 0 1 1.3.6 1.8 1.8 0 0 1 1.3-.6h4.2v9.3H9.3a1.3 1.3 0 0 0-1.3.7 1.3 1.3 0 0 0-1.3-.7H2.5z"/><path d="M8 3.8v8.9"/></svg></div>
+          <h3>Learns your jargon</h3>
+          <p><code>learn cube ctl =&gt; kubectl</code> and it is fixed permanently — in a plain-text file you can read and edit.</p>
+        </div>
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.8v4M8 11v.2"/></svg></div>
+          <h3>Tells you when it can't help</h3>
+          <p>Elevated window? You get "text kept, not inserted" and a key to paste it yourself — never a silently swallowed sentence.</p>
+        </div>
+        <div class="card">
+          <div class="ico"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5.5" y="1.8" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2M5.8 14.5h4.4"/></svg></div>
+          <h3>Never clips your first word</h3>
+          <p>The microphone runs in a 400 ms look-back ring, so the utterance starts when you do — not when the app catches up.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">How it works</div>
+        <h2>Everything happens on your machine.</h2>
+      </div>
+      <div class="grid cols-4 steps">
+        <div class="step"><h3>Hold <kbd>Ctrl</kbd> + <kbd>Win</kbd></h3><p>A pure Win32 keyboard hook opens the channel; the overlay appears. The Start menu never pops, and Ctrl+Win+Arrow still switches desktops.</p></div>
+        <div class="step"><h3>Speak</h3><p>Audio goes into an in-memory ring — with 400 ms of look-back from before the key press.</p></div>
+        <div class="step"><h3>Release</h3><p>Local speech recognition (NVIDIA Parakeet, on the CPU) turns it into text; deterministic cleanup tidies it.</p></div>
+        <div class="step"><h3>Text at the cursor</h3><p>Inserted through the route that works for the focused app — terminal, browser, RDP, or anything else.</p></div>
+      </div>
+      <div class="modes">
+        <div class="mode"><div class="name"><i style="background:#C9CDD9"></i>Raw</div><p>Exactly what you said, plus your dictionary. Forced automatically in terminals and IDEs.</p></div>
+        <div class="mode"><div class="name"><i style="background:#5ADCFF"></i>Auto</div><p>Light tidy: <em>um</em>/<em>uh</em> removed, sentence casing, terminal punctuation.</p></div>
+        <div class="mode"><div class="name"><i style="background:#64E6A0"></i>Polish</div><p>Auto plus conversational scaffolding removed — <em>"like, you know, and stuff"</em> gone, meaning intact.</p></div>
+      </div>
+      <p class="modes-note">All three are rule-based and run entirely offline, so they can only ever <strong>delete</strong> filler — they can never invent or reword anything.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="themes">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">Overlay</div>
+        <h2>Four looks, one message.</h2>
+        <p>Every theme tells you the same three things — the mic is being heard, which cleanup mode is on, how strong the signal is. Picking one changes how it looks, never what it tells you.</p>
+      </div>
+      <div class="themes">
+        <div class="theme"><div class="shot"><img src="assets/overlay-hud-live.png" width="460" height="84" alt="HUD theme"></div><div class="cap"><b>HUD</b><span>default — tactical comms: voiceprint, timecode, mode callout</span></div></div>
+        <div class="theme"><div class="shot"><img src="assets/overlay-volt-live.png" width="460" height="84" alt="Volt theme"></div><div class="cap"><b>Volt</b><span>an electric beam with lightning forks that ride your voice</span></div></div>
+        <div class="theme"><div class="shot"><img src="assets/overlay-wave-live.png" width="460" height="84" alt="Wave theme"></div><div class="cap"><b>Wave</b><span>flowing layered waveform, tinted by the active mode</span></div></div>
+        <div class="theme"><div class="shot"><img src="assets/overlay-bars-live.png" width="460" height="84" alt="Bars theme"></div><div class="cap"><b>Bars</b><span>frequency spectrum — the classic visualizer</span></div></div>
+      </div>
+      <p class="themes-note">Cycle live with <kbd class="mono">Ctrl + Alt + O</kbd> or from the tray icon; set a default with <code>overlay_style</code> in <code>%APPDATA%\HoldToSpeak\settings.toml</code>.</p>
+    </div>
+  </section>
+
+  <section class="sec privacy" id="privacy">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Privacy</div>
+        <h2 style="margin-top:12px">Built to be checked, not trusted.</h2>
+        <div class="checks">
+          <div class="check"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg><p><b>No account, no cloud, no telemetry.</b> There is no server behind this app and no code path for analytics or crash reporting.</p></div>
+          <div class="check"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg><p><b>One network request, ever.</b> The first run downloads the ~460 MB speech model from its upstream GitHub release and verifies it against a pinned SHA-256. That is the only outbound HTTP in the codebase.</p></div>
+          <div class="check"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg><p><b>Recordings don't stick around.</b> Audio is transcribed from a temporary file that is deleted immediately afterwards.</p></div>
+          <div class="check"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg><p><b>No screenshots, no reading your documents.</b> It sees the name of the focused app and whether the field is a password field — enough to choose how to insert text, nothing more.</p></div>
+        </div>
+        <p class="small" style="margin-top:22px">The full statement, including exactly what is stored where: <a href="https://github.com/rootMonsteR/holdtospeak/blob/main/PRIVACY.md">PRIVACY.md</a>.</p>
+      </div>
+      <div class="zero">
+        <span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <div class="big"><span class="n">0</span><span class="t">outbound connections</span></div>
+        <p>Prove it in one line. After the model is installed, block the app from the network entirely — dictation keeps working.</p>
+<pre class="code"><span class="c"># admin PowerShell</span>
+New-NetFirewallRule -DisplayName "Block HoldToSpeak outbound" `
+  -Direction Outbound -Action Block `
+  -Program "$env:LOCALAPPDATA\HoldToSpeak\HoldToSpeak.exe"</pre>
+        <div class="verify">
+          <div>Unplug the cable and use it normally</div>
+          <div>Watch it in Wireshark or Resource Monitor</div>
+          <div>Read the code — one URL, in one crate</div>
+          <div>Delete two folders and it's gone clean</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="hotkeys">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">Hotkeys</div>
+        <h2>Four keys to learn. They work in any app.</h2>
+      </div>
+      <table class="keys-table">
+        <tr><td><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Win</kbd> <span class="small">(hold)</span></td><td>Dictate — speak, then release.</td></tr>
+        <tr><td><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>M</kbd></td><td>Cycle cleanup mode: Raw → Auto → Polish.</td></tr>
+        <tr><td><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>O</kbd></td><td>Cycle overlay theme.</td></tr>
+        <tr><td><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Q</kbd></td><td>Quit.</td></tr>
+      </table>
+      <p class="rebind">Rebind any of them in <code>%APPDATA%\HoldToSpeak\hotkeys.toml</code> — plain text, <code>off</code> disables one.</p>
+    </div>
+  </section>
+
+  <section class="sec download" id="download">
+    <div class="wrap">
+      <div class="box">
+        <span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <div>
+          <div class="eyebrow">Download</div>
+          <h2 style="margin-top:12px">HoldToSpeak <span class="mono" data-dl-version style="font-weight:500;color:var(--text-3);font-size:0.6em">v0.1.3</span></h2>
+          <p class="sub" style="margin-top:12px">Windows 10/11, x64, and a microphone. The installer is per-user — it lands in <code>%LOCALAPPDATA%</code> and never asks for admin rights. First launch downloads the speech model once (~460 MB) and says so.</p>
+          <p class="fine">Not code-signed yet: SmartScreen will show "Windows protected your PC" — click <strong>More info → Run anyway</strong>, or verify the SHA-256 published with every release. A winget manifest is <a href="https://github.com/microsoft/winget-pkgs/pull/420408">awaiting review</a>.</p>
+        </div>
+        <div class="dl-list">
+          <a class="dl" href="https://github.com/rootMonsteR/holdtospeak/releases/download/v0.1.3/HoldToSpeak-0.1.3-x64-setup.exe" data-dl="setup"><span><span class="name">Installer</span><br><span class="what">HoldToSpeak-<span data-dl-ver>0.1.3</span>-x64-setup.exe · per-user, no admin</span></span><span class="size" data-dl-size="setup">7.8 MB</span></a>
+          <a class="dl" href="https://github.com/rootMonsteR/holdtospeak/releases/download/v0.1.3/HoldToSpeak-0.1.3-x64.zip" data-dl="zip"><span><span class="name">Portable ZIP</span><br><span class="what">HoldToSpeak-<span data-dl-ver>0.1.3</span>-x64.zip · unzip and run</span></span><span class="size" data-dl-size="zip">9.2 MB</span></a>
+          <a class="dl" href="https://github.com/rootMonsteR/holdtospeak#from-source"><span><span class="name">From source</span><br><span class="what">cargo build — the paranoid-friendly path</span></span><span class="size">git</span></a>
+          <p class="fine">All releases and hashes: <a href="https://github.com/rootMonsteR/holdtospeak/releases">github.com/rootMonsteR/holdtospeak/releases</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>HoldToSpeak is MIT-licensed. Made in Rust by <a href="https://github.com/rootMonsteR">rootMonsteR</a>. This page loads nothing from third parties.</div>
+    <div class="links">
+      <a href="https://github.com/rootMonsteR/holdtospeak">GitHub</a>
+      <a href="https://github.com/rootMonsteR/holdtospeak/releases">Releases</a>
+      <a href="https://github.com/rootMonsteR/holdtospeak/blob/main/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/rootMonsteR/holdtospeak/issues">Issues</a>
+      <a href="https://github.com/rootMonsteR/holdtospeak/blob/main/THIRD-PARTY-NOTICES.md">Notices</a>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js" defer></script>
+</body>
+</html>
