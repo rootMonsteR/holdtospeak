@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Privacy questions
+    url: https://github.com/rootMonsteR/holdtospeak/blob/main/PRIVACY.md
+    about: What runs where, the one network request, and how to verify it yourself.
