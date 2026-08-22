@@ -231,6 +231,24 @@ impl Win32Hotkey {
     pub fn watch_user_input(witness: InputWitness) {
         let _ = USER_INPUT.set(witness);
     }
+
+    /// Swap the bindings on the live hook without re-hooking. The hook proc only ever reads the
+    /// static slots, so this is safe from any thread: chords are unpublished (`CHORD_N = 0`)
+    /// while the slots are rewritten, then republished — a press during the swap is ignored
+    /// rather than misrouted. Used by the settings window to apply a rebind immediately.
+    pub fn rebind(ptt: &Binding, chords: &[Binding]) {
+        CHORD_N.store(0, SeqCst);
+        let (pm, _) = binding_mods_key(ptt);
+        PTT_MODS.store(pm, SeqCst);
+        let n = chords.len().min(MAX_CHORDS);
+        for (i, c) in chords.iter().take(n).enumerate() {
+            let (cm, ck) = binding_mods_key(c);
+            CHORD_MODS[i].store(cm, SeqCst);
+            CHORD_KEYS[i].store(ck as u32, SeqCst);
+            CHORD_ARMED[i].store(false, SeqCst);
+        }
+        CHORD_N.store(n, SeqCst);
+    }
 }
 
 impl HotkeySource for Win32Hotkey {

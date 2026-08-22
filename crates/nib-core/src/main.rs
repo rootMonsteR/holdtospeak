@@ -3,15 +3,17 @@
 //! validated `spikes/vslice` prototype, now on the real crate architecture. (The Tauri `app/`
 //! shell replaces this later; the pipeline is unchanged.)
 
+mod settings_ui;
+
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8};
 use std::sync::mpsc::{channel, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use nib_asr::{Sidecar, SidecarConfig, SidecarKind};
 use nib_audio::Capture;
 use nib_cleanup::Mode;
-use nib_pipeline::{hotkey_forwarder, PipeMsg, Pipeline};
+use nib_pipeline::{hotkey_forwarder, PipeMsg, Pipeline, Stats};
 use nib_platform::Autostart;
 use nib_platform::{HotkeySource, InputWitness, PathLayout, TargetProbe, TextInjector};
 use nib_win32::{
@@ -168,6 +170,7 @@ fn main() {
     let mut n_gpu_layers = 0i32;
     let mut model_override: Option<String> = None;
     let mut overlay_enabled = settings.overlay;
+    let mut open_settings_at_start = false;
     let mut style_idx = style_index(&settings.overlay_style);
     let mut sidecar_kind = match settings.sidecar.as_str() {
         "python" => SidecarKind::Python,
@@ -195,6 +198,9 @@ fn main() {
                 }
             }
             "--no-overlay" => overlay_enabled = false,
+            // Open the settings window as soon as the app is up (handy for a first look and for
+            // drivers/tests; the tray's "Settings…" item does the same thing later).
+            "--settings" => open_settings_at_start = true,
             "--sidecar" => {
                 i += 1;
                 // Strict: a typo must not silently start the wrong sidecar (a Pro user would get
@@ -289,6 +295,10 @@ fn main() {
         warm_mode: mode.token().to_string(),
     };
 
+    // Kept for the settings window (the config is consumed by the sidecar spawn below).
+    let dictionary_path = cfg.dictionary.clone();
+    let model_dir = cfg.model_dir.clone();
+
     println!("=== HoldToSpeak ===");
     println!(
         "Loading ASR{} sidecar...",
@@ -364,7 +374,10 @@ fn main() {
     let current_listening = Arc::new(AtomicBool::new(false));
 
     // ---- floating voice-spectrum overlay (shown only while PTT is held) ----
-    if overlay_enabled {
+    // The thread always runs; `current_overlay_enabled` is the user's switch, so the settings
+    // window can turn the overlay on or off live. Idle it costs one poll every 60 ms.
+    let current_overlay_enabled = Arc::new(AtomicBool::new(overlay_enabled));
+    {
         let monitor = capture.monitor();
         let rate = monitor.sample_rate();
         Win32Overlay::spawn(
@@ -372,6 +385,7 @@ fn main() {
             current_style.clone(),
             current_mode.clone(),
             current_listening.clone(),
+            current_overlay_enabled.clone(),
             rate,
         );
     }
@@ -380,9 +394,10 @@ fn main() {
     // The forwarder freezes the capture window at key-event time (via CaptureControl) so a burst
     // of PTT presses during a prior transcription can't lose audio.
     let (tx, rx) = channel::<PipeMsg>();
-    // Chord bindings and their meanings are built together (nib-config::Hotkeys::chords) so the
-    // indices the hook reports and the actions taken here cannot drift apart.
-    let (chord_bindings, chord_actions) = hk.chords();
+    // Chord bindings and their meanings are built together (nib-config::Hotkeys::chord_slots) so
+    // the indices the hook reports and the actions taken here cannot drift apart — positional
+    // slots, so the settings window can rebind live without touching this table.
+    let (chord_bindings, chord_actions) = hk.chord_slots();
     hotkey.start(
         hk.ptt.clone(),
         chord_bindings,
@@ -425,6 +440,10 @@ fn main() {
                     TrayCommand::SetMode(i) => PipeMsg::SetMode(i),
                     TrayCommand::SetStyle(i) => PipeMsg::SetStyle(i),
                     TrayCommand::CycleMode => PipeMsg::CycleMode,
+                    TrayCommand::OpenSettings => {
+                        settings_ui::open();
+                        continue;
+                    }
                     TrayCommand::Quit => PipeMsg::Quit,
                 };
                 if tx.send(msg).is_err() {
@@ -452,6 +471,47 @@ fn main() {
         combo_name(&hk.quit),
     );
 
+    // ---- shared with the settings window: recent dictations + the live silence gate ----
+    let stats = Arc::new(Stats::default());
+    let silence_gate = Arc::new(AtomicU32::new(settings.silence_rms.to_bits()));
+
+    // ---- the settings window (its own UI thread; the window itself opens on demand) ----
+    let engine: &'static str = match sidecar_kind {
+        SidecarKind::Native => "native",
+        SidecarKind::Python => "python",
+    };
+    let model_spec = &nib_models::PARAKEET_EN_INT8;
+    settings_ui::spawn(settings_ui::Bridge {
+        tx: Mutex::new(tx.clone()),
+        mode: current_mode.clone(),
+        style: current_style.clone(),
+        listening: current_listening.clone(),
+        overlay_enabled: current_overlay_enabled.clone(),
+        silence_gate: silence_gate.clone(),
+        monitor: capture.monitor(),
+        stats: stats.clone(),
+        settings: Mutex::new(settings.clone()),
+        settings_path: settings_path.clone(),
+        hotkeys: Mutex::new(hk),
+        hotkeys_path: hotkeys_path.clone(),
+        dictionary_path,
+        config_dir: paths.config_dir(),
+        data_dir: paths.data_dir(),
+        engine,
+        llm,
+        mic_name: capture.device_name(),
+        model: settings_ui::ModelInfo {
+            name: model_spec.name.to_string(),
+            dir: model_dir,
+            bytes: model_spec.bytes,
+            sha256: model_spec.sha256.to_string(),
+        },
+        started: std::time::Instant::now(),
+    });
+    if open_settings_at_start {
+        settings_ui::open();
+    }
+
     // Capture is !Send — build and run the pipeline here on the main thread.
     let mut pipeline = Pipeline::new(
         injector,
@@ -461,6 +521,8 @@ fn main() {
         mode,
         current_mode,
         user_input,
+        stats,
+        silence_gate,
     );
     pipeline.run(rx);
     drop(pipeline); // Sidecar::Drop shuts the Python child down here

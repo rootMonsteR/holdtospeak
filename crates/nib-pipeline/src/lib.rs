@@ -19,6 +19,9 @@ use nib_platform::{
     TargetProfile, TextInjector, Utterance,
 };
 
+pub mod stats;
+pub use stats::{DictationRecord, Stats};
+
 /// Messages the pipeline's run loop consumes: a completed (already-frozen) utterance plus control
 /// commands from the hotkey / tray / console. Everything funnels through one channel so ordering
 /// is deterministic.
@@ -116,12 +119,13 @@ fn rms(samples: &[f32]) -> f32 {
     (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt()
 }
 
-/// The silence threshold, overridable at runtime for quiet mics / noisy rooms.
-fn silence_threshold() -> f32 {
+/// The silence threshold: `NIB_SILENCE_RMS` (debugging) wins, else `default` — the live gate the
+/// settings window tunes, seeded from `settings.toml`.
+fn silence_threshold_or(default: f32) -> f32 {
     std::env::var("NIB_SILENCE_RMS")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(SILENCE_RMS)
+        .unwrap_or(default)
 }
 
 /// Whether a sidecar reply is a transcript worth injecting.
@@ -207,9 +211,17 @@ pub struct Pipeline {
     user_input: InputWitness,
     /// The witness reading taken when we last injected.
     prev_input: u64,
+    /// Recent dictations + counters, read by the settings window's Diagnostics page.
+    stats: Arc<Stats>,
+    /// The silence gate (f32 bits), shared so the settings window can tune it live. `NIB_SILENCE_RMS`
+    /// still overrides it for debugging.
+    silence_gate: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl Pipeline {
+    /// Composition-root constructor: every collaborator is handed in once, by the only caller
+    /// (`nib-core`'s `main`), which is why the argument count is tolerated over a builder.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         injector: Box<dyn TextInjector>,
         probe: Arc<dyn TargetProbe + Send + Sync>,
@@ -218,6 +230,8 @@ impl Pipeline {
         mode: Mode,
         shared_mode: Arc<AtomicU8>,
         user_input: InputWitness,
+        stats: Arc<Stats>,
+        silence_gate: Arc<std::sync::atomic::AtomicU32>,
     ) -> Pipeline {
         shared_mode.store(mode.index(), SeqCst);
         Pipeline {
@@ -231,7 +245,14 @@ impl Pipeline {
             prev_target: None,
             prev_input: user_input.count(),
             user_input,
+            stats,
+            silence_gate,
         }
+    }
+
+    /// Bits for a `silence_gate` atom: the pipeline's default threshold.
+    pub fn default_silence_gate() -> u32 {
+        SILENCE_RMS.to_bits()
     }
 
     pub fn mode(&self) -> Mode {
@@ -271,6 +292,7 @@ impl Pipeline {
         if samples.len() < 1600 {
             // < 0.1 s of audio — a stray tap, not speech.
             println!("\r(too short)              ");
+            self.record("", self.mode, 0, 0, "too-short");
             return;
         }
         // Every capture includes the 400 ms pre-roll, so even a key-tap with no speech hands the
@@ -278,9 +300,10 @@ impl Pipeline {
         // "Okay") from noise, which would then be injected into the user's document. Gate on
         // signal level so silence never reaches the model. (Silero VAD replaces this later.)
         let level = rms(&samples);
-        let thresh = silence_threshold();
+        let thresh = silence_threshold_or(f32::from_bits(self.silence_gate.load(SeqCst)));
         if level < thresh {
             println!("\r(silence — rms {level:.4} < gate {thresh:.4})          ");
+            self.record("", self.mode, 0, 0, "silence");
             return;
         }
         let wav = std::env::temp_dir().join(format!("nib_utt_{}.wav", std::process::id()));
@@ -313,10 +336,24 @@ impl Pipeline {
                         t.trim_start_matches("__error__").trim()
                     );
                     println!("\r(transcription failed — see error above)   ");
+                    self.record(
+                        &target.exe,
+                        mode,
+                        0,
+                        t0.elapsed().as_millis() as u64,
+                        "failed",
+                    );
                     return;
                 }
                 None => {
                     println!("\r(no speech)              ");
+                    self.record(
+                        &target.exe,
+                        mode,
+                        0,
+                        t0.elapsed().as_millis() as u64,
+                        "no-speech",
+                    );
                     return;
                 }
             },
@@ -334,6 +371,7 @@ impl Pipeline {
         );
         let text = apply_spacing(&text, self.prev_ended_ws);
 
+        let words = text.split_whitespace().count();
         match inject_with_fallback(self.injector.as_ref(), &text, &target) {
             InjectOutcome::Inserted => {
                 self.prev_ended_ws = Some(text.ends_with(|c: char| c.is_whitespace()));
@@ -345,11 +383,14 @@ impl Pipeline {
                     ""
                 };
                 println!("\r→ \"{}\"  [{ms} ms, rms {level:.4}]{note}", text.trim());
+                self.record(&target.exe, mode, words, ms as u64, "inserted");
             }
             InjectOutcome::Refused => {
                 println!("\r(password field — not inserted; text kept)   ");
+                self.record(&target.exe, mode, words, ms as u64, "refused");
             }
             InjectOutcome::Blocked | InjectOutcome::FocusChanged => {
+                self.record(&target.exe, mode, words, ms as u64, "blocked");
                 // An elevated target is the common, explicable cause: UIPI swallows our input
                 // silently, so say so and keep the text rather than leaving the user guessing.
                 if target.is_elevated {
@@ -362,6 +403,18 @@ impl Pipeline {
                 }
             }
         }
+    }
+
+    /// Note a finished utterance for the Diagnostics page. Off the hot path (after injection).
+    fn record(&self, app: &str, mode: Mode, words: usize, ms: u64, outcome: &'static str) {
+        self.stats.push(DictationRecord {
+            at_unix_ms: 0,
+            app: app.to_string(),
+            mode: mode.token().to_string(),
+            words,
+            ms,
+            outcome,
+        });
     }
 
     /// Cycle to the next mode the running sidecar can actually serve (free build: Raw ↔ Auto).

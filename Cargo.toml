@@ -56,6 +56,10 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 # Embeds the app icon + version info into the exe (build-dependency only, MIT/Apache-2.0).
 winresource = "0.1"
+# The settings window: a WebView2 window inside nib-core (MIT/Apache-2.0). No tray/plugins.
+tauri = { version = "2", default-features = false, features = ["wry", "common-controls-v6"] }
+tauri-build = { version = "2", default-features = false }
+serde_json = "1"
 # internal (path) — the nib-* dependency graph
 nib-proto = { path = "crates/nib-proto" }
 nib-platform = { path = "crates/nib-platform" }
