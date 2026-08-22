@@ -1,0 +1,53 @@
+name: Bug report
+description: Something didn't work — dictation didn't insert, a hotkey misfired, a crash.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — a good report usually takes two minutes. The console window prints what the app
+        decided to do on every dictation, so its last few lines are the most useful thing you can paste.
+  - type: input
+    id: version
+    attributes:
+      label: HoldToSpeak version
+      description: From the installer / ZIP name, or Windows Settings → Apps → Installed apps.
+      placeholder: "0.1.3"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Run `winver`.
+      placeholder: "Windows 11 24H2 (26100.4351)"
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: App you were dictating into
+      description: The program name helps most — injection is chosen per target app.
+      placeholder: "Windows Terminal (WSL tab) · Chrome · Outlook · RDP session …"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      placeholder: |
+        Held Ctrl+Win, said "list the pods", released. Nothing appeared in the terminal; the overlay showed the waveform normally.
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: The last lines from the HoldToSpeak console window around the failure. Transcribed text is fine to redact.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Quick checks
+      options:
+        - label: The microphone works in another app (e.g. Voice Recorder).
+        - label: It still fails after restarting HoldToSpeak.
+        - label: The target app is not running elevated (as administrator) while HoldToSpeak is not.
